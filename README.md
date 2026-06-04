@@ -1,48 +1,136 @@
-# PRM393 Project
+# 💧 Water Meter App - PRM393 Project
 
-## Giới thiệu
-Dự án môn học PRM393 - Mobile Programming
+Ứng dụng di động hỗ trợ nhân viên thu tiền nước ghi chỉ số đồng hồ, thu tiền và đồng bộ dữ liệu.  
+Hoạt động hoàn toàn OFFLINE, tự động đồng bộ khi có mạng.
 
-## Công nghệ sử dụng
-- Flutter
-- Dart
+---
 
-## Cài đặt
+## 📚 BẮT ĐẦU NHANH
+
+### 1️⃣ Chạy ứng dụng
 
 ```bash
-# Clone repository
-git clone <repository-url>
-
-# Di chuyển vào thư mục dự án
-cd PRM_Project
-
-# Cài đặt dependencies
+cd water_meter_app
 flutter pub get
-
-# Chạy ứng dụng
 flutter run
 ```
 
-## Cấu trúc dự án
+### 2️⃣ Đăng nhập
+
+- **Admin:** `admin` / `12345678`
+- **Staff:** `staff01` / `12345678`
+
+### 3️⃣ Đọc tài liệu
+
+👉 Bắt đầu từ: **[`INDEX.md`](INDEX.md)** - Hướng dẫn tìm đúng tài liệu cần đọc
+
+---
+
+## 🎯 Tính năng chính
+
+- ✅ **Đăng nhập** với username/password (SQLite)
+- 🔜 **Tải dữ liệu** khách hàng trước khi đi thu (ONLINE)
+- 🔜 **Ghi chỉ số** đồng hồ nước (OFFLINE)
+- 🔜 **Chụp ảnh** đồng hồ làm bằng chứng
+- 🔜 **Thu tiền** (tiền tháng hiện tại + tiền nợ)
+- 🔜 **Quản lý công nợ**
+- 🔜 **Đồng bộ** dữ liệu lên server (ONLINE)
+- 🔜 **Lịch sử** ghi số và thu tiền
+
+---
+
+## 📂 Cấu trúc dự án
+
 ```
 PRM_Project/
-├── lib/           # Mã nguồn chính
-├── test/          # Unit tests
-├── assets/        # Hình ảnh, fonts, etc.
-└── README.md
+├── INDEX.md                        # 🎯 BẮT ĐẦU TỪ ĐÂY
+├── README.md                       # File này
+├── CODE_EXPLANATION.md            # Giải thích code chi tiết
+├── SCREEN_FLOW.md                 # Sơ đồ luồng màn hình
+├── REFACTOR_SUMMARY.md            # Tóm tắt refactor
+│
+└── water_meter_app/               # Flutter app
+    ├── GETTING_STARTED.md         # Hướng dẫn chạy app
+    ├── CODE_STRUCTURE.md          # Cấu trúc code
+    ├── QUICK_REFERENCE.md         # Tra cứu nhanh
+    │
+    └── lib/
+        ├── main.dart              # Entry point (32 dòng)
+        ├── models/                # Data models
+        ├── database/              # SQLite database
+        ├── providers/             # State management
+        └── screens/               # UI screens
 ```
 
-## Tác giả
-- Sinh viên: [Tên của bạn]
-- Lớp: [Mã lớp]
-- MSSV: [Mã số sinh viên]
+---
 
-## Tiến độ phát triển
-- [ ] Khởi tạo dự án
-- [ ] Thiết kế UI
-- [ ] Xây dựng chức năng
-- [ ] Testing
-- [ ] Hoàn thiện
+## 📖 Tài liệu quan trọng
 
-## License
-MIT License
+| Tài liệu | Mục đích | Đọc khi nào |
+|----------|----------|-------------|
+| **[`INDEX.md`](INDEX.md)** | **Hướng dẫn tìm tài liệu** | **Đọc đầu tiên** |
+| [`water_meter_app/GETTING_STARTED.md`](water_meter_app/GETTING_STARTED.md) | Hướng dẫn chạy app | Muốn chạy app |
+| [`CODE_EXPLANATION.md`](CODE_EXPLANATION.md) | Giải thích code | Muốn hiểu code |
+| [`SCREEN_FLOW.md`](SCREEN_FLOW.md) | Luồng màn hình | Muốn hiểu UI |
+| [`water_meter_app/CODE_STRUCTURE.md`](water_meter_app/CODE_STRUCTURE.md) | Cấu trúc code | Muốn code thêm |
+| [`water_meter_app/QUICK_REFERENCE.md`](water_meter_app/QUICK_REFERENCE.md) | Tra cứu nhanh | Cần tìm nhanh |
+
+---
+
+## 🚀 Công nghệ sử dụng
+
+- **Flutter** - UI framework
+- **Dart** - Programming language
+- **SQLite** - Local database
+- **Provider** - State management
+- **Camera** - Chụp ảnh đồng hồ
+- **HTTP** - API calls
+
+---
+
+## 📊 Tiến độ phát triển
+
+- ✅ **Phase 1:** Authentication (Hoàn thành)
+  - Login/Logout với SQLite
+  - User model
+  - Provider state management
+  - UI Login & Home
+
+- 🔜 **Phase 2:** Customer Management
+  - Customer model
+  - Download data screen
+  - Customer list & detail
+
+- 🔜 **Phase 3:** Meter Reading & Payment
+  - Reading & payment models
+  - Camera integration
+  - Payment collection
+
+- 🔜 **Phase 4:** Sync & History
+  - API service
+  - Data synchronization
+  - History screens
+
+---
+
+## 🎓 Môn học
+
+- **Môn:** PRM393 - Mobile Development
+- **Dự án:** Water Meter App
+- **Năm:** 2026
+
+---
+
+## 👥 Thành viên
+
+_[Thêm thông tin thành viên nhóm ở đây]_
+
+---
+
+## 📞 Liên hệ
+
+Gặp vấn đề? Đọc [`water_meter_app/GETTING_STARTED.md`](water_meter_app/GETTING_STARTED.md) phần Troubleshooting.
+
+---
+
+**🎯 Bắt đầu từ đây:** [`INDEX.md`](INDEX.md)
