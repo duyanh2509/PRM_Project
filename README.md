@@ -17,8 +17,8 @@ flutter run
 
 ### 2️⃣ Đăng nhập
 
-- **Admin:** `admin` / `12345678`
-- **Staff:** `staff01` / `12345678`
+- **Admin:** `admin` / `admin123`
+- **Lưu ý:** Tài khoản admin được tạo tự động khi cài đặt lần đầu
 
 ### 3️⃣ Đọc tài liệu
 
@@ -29,13 +29,14 @@ flutter run
 ## 🎯 Tính năng chính
 
 - ✅ **Đăng nhập** với username/password (SQLite)
-- 🔜 **Tải dữ liệu** khách hàng trước khi đi thu (ONLINE)
-- 🔜 **Ghi chỉ số** đồng hồ nước (OFFLINE)
-- 🔜 **Chụp ảnh** đồng hồ làm bằng chứng
-- 🔜 **Thu tiền** (tiền tháng hiện tại + tiền nợ)
-- 🔜 **Quản lý công nợ**
-- 🔜 **Đồng bộ** dữ liệu lên server (ONLINE)
-- 🔜 **Lịch sử** ghi số và thu tiền
+- ✅ **Tải dữ liệu** khách hàng từ Firebase (ONLINE)
+- ✅ **Ghi chỉ số** đồng hồ nước (OFFLINE)
+- ✅ **Chụp ảnh** đồng hồ làm bằng chứng
+- ✅ **Thu tiền** (tiền tháng hiện tại + tiền nợ)
+- ✅ **Quản lý công nợ**
+- ✅ **Đồng bộ** dữ liệu lên Firebase (ONLINE)
+- ✅ **Lịch sử** ghi số và thu tiền
+- ✅ **Chế độ offline-first** với SQLite sync
 
 ---
 
@@ -81,10 +82,11 @@ PRM_Project/
 
 - **Flutter** - UI framework
 - **Dart** - Programming language
-- **SQLite** - Local database
+- **SQLite (sqflite)** - Local offline database
+- **Firebase** - Backend (Firestore + Storage)
 - **Provider** - State management
 - **Camera** - Chụp ảnh đồng hồ
-- **HTTP** - API calls
+- **Connectivity Plus** - Network detection
 
 ---
 
@@ -96,20 +98,25 @@ PRM_Project/
   - Provider state management
   - UI Login & Home
 
-- 🔜 **Phase 2:** Customer Management
+- ✅ **Phase 2:** Customer Management (Hoàn thành)
   - Customer model
-  - Download data screen
+  - Firebase integration
   - Customer list & detail
+  - List/Grid view toggle
 
-- 🔜 **Phase 3:** Meter Reading & Payment
+- ✅ **Phase 3:** Meter Reading & Payment (Hoàn thành)
   - Reading & payment models
   - Camera integration
   - Payment collection
+  - Offline-first workflow
 
-- 🔜 **Phase 4:** Sync & History
-  - API service
-  - Data synchronization
+- ✅ **Phase 4:** Sync & History (Hoàn thành)
+  - Firebase service
+  - Data synchronization (bidirectional)
   - History screens
+  - Production APK build
+
+- ✅ **PRODUCTION READY** - App hoàn thiện và sẵn sàng triển khai
 
 ---
 

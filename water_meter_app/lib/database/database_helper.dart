@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/customer_model.dart';
+import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
 
-/// Helper class de quan ly SQLite database.
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._internal();
 
@@ -14,18 +17,19 @@ class DatabaseHelper {
   static Database? _database;
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
+    if (_database != null) {
+      return _database!;
+    }
     _database = await _initDatabase();
     return _database!;
   }
 
   Future<Database> _initDatabase() async {
-    final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'water_meter_app.db');
+    final path = await _databaseFilePath();
 
     return openDatabase(
       path,
-      version: 3,
+      version: 9,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -38,7 +42,7 @@ class DatabaseHelper {
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         fullName TEXT NOT NULL,
-        role TEXT DEFAULT 'staff',
+        role TEXT NOT NULL DEFAULT 'staff',
         areaCode TEXT NOT NULL,
         areaName TEXT NOT NULL,
         createdAt TEXT NOT NULL
@@ -57,221 +61,111 @@ class DatabaseHelper {
         lastReading REAL,
         lastReadingDate TEXT,
         pricePerUnit REAL NOT NULL DEFAULT 15000,
+        totalDebt REAL NOT NULL DEFAULT 0,
+        debtMonths INTEGER NOT NULL DEFAULT 0,
+        lastPaymentDate TEXT,
+        routeStatus TEXT NOT NULL DEFAULT 'uncollected',
         createdAt TEXT NOT NULL,
         updatedAt TEXT
       )
     ''');
 
-    await _seedDemoData(db);
+    await db.execute('''
+      CREATE TABLE meter_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerCode TEXT NOT NULL,
+        recordType TEXT NOT NULL,
+        oldReading REAL,
+        newReading REAL,
+        amountCollected REAL,
+        syncStatus TEXT NOT NULL DEFAULT 'pending',
+        recordedAt TEXT NOT NULL,
+        collectorName TEXT,
+        note TEXT,
+        billingMonth TEXT,
+        paymentMethod TEXT,
+        paymentStatus TEXT,
+        proofImagePath TEXT,
+        syncedAt TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE server_customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerCode TEXT UNIQUE NOT NULL,
+        customerName TEXT NOT NULL,
+        address TEXT NOT NULL,
+        phoneNumber TEXT,
+        areaCode TEXT NOT NULL,
+        areaName TEXT NOT NULL,
+        lastReading REAL,
+        lastReadingDate TEXT,
+        pricePerUnit REAL NOT NULL DEFAULT 15000,
+        totalDebt REAL NOT NULL DEFAULT 0,
+        debtMonths INTEGER NOT NULL DEFAULT 0,
+        lastPaymentDate TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE server_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerCode TEXT NOT NULL,
+        recordType TEXT NOT NULL,
+        oldReading REAL,
+        newReading REAL,
+        amountCollected REAL,
+        syncStatus TEXT NOT NULL DEFAULT 'synced',
+        recordedAt TEXT NOT NULL,
+        collectorName TEXT,
+        note TEXT,
+        billingMonth TEXT,
+        paymentMethod TEXT,
+        paymentStatus TEXT,
+        proofImagePath TEXT,
+        syncedAt TEXT
+      )
+    ''');
+
+    await _seedInitialData(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 3) {
+    if (oldVersion < 9) {
+      await db.execute('DROP TABLE IF EXISTS server_records');
+      await db.execute('DROP TABLE IF EXISTS server_customers');
+      await db.execute('DROP TABLE IF EXISTS meter_records');
       await db.execute('DROP TABLE IF EXISTS customers');
       await db.execute('DROP TABLE IF EXISTS users');
       await _createTables(db, newVersion);
     }
   }
 
-  Future<void> _seedDemoData(Database db) async {
-    final now = DateTime.now().toIso8601String();
+  Future<void> _seedInitialData(Database db) async {
+    final now = DateTime.now();
+    final nowIso = now.toIso8601String();
 
-    final demoUsers = <Map<String, Object?>>[
+    // Chỉ tạo tài khoản admin mặc định
+    final users = <Map<String, Object?>>[
       {
-        'username': 'staff01',
-        'password': '12345678',
-        'fullName': 'Nhan vien A',
-        'role': 'staff',
-        'areaCode': 'KV01',
-        'areaName': 'Khu vuc 1',
-        'createdAt': now,
-      },
-      {
-        'username': 'staff02',
-        'password': '12345678',
-        'fullName': 'Nhan vien B',
-        'role': 'staff',
-        'areaCode': 'KV02',
-        'areaName': 'Khu vuc 2',
-        'createdAt': now,
-      },
-      {
-        'username': 'staff03',
-        'password': '12345678',
-        'fullName': 'Nhan vien C',
-        'role': 'staff',
-        'areaCode': 'KV03',
-        'areaName': 'Khu vuc 3',
-        'createdAt': now,
+        'username': 'admin',
+        'password': 'admin123',
+        'fullName': 'Administrator',
+        'role': 'admin',
+        'areaCode': 'ALL',
+        'areaName': 'Tất cả khu vực',
+        'createdAt': nowIso,
       },
     ];
 
-    for (final user in demoUsers) {
+    for (final user in users) {
       await db.insert('users', user);
     }
 
-    final demoCustomers = <Map<String, Object?>>[
-      {
-        'customerCode': 'KH001',
-        'customerName': 'Nguyen Van An',
-        'address': '12 Duong Hoa Sen, Phuong 1',
-        'phoneNumber': '0901000001',
-        'areaCode': 'KV01',
-        'areaName': 'Khu vuc 1',
-        'lastReading': 128.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH002',
-        'customerName': 'Tran Thi Binh',
-        'address': '34 Duong Le Loi, Phuong 2',
-        'phoneNumber': '0901000002',
-        'areaCode': 'KV01',
-        'areaName': 'Khu vuc 1',
-        'lastReading': 96.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH003',
-        'customerName': 'Le Quoc Cuong',
-        'address': '56 Duong Tran Phu, Phuong 3',
-        'phoneNumber': '0901000003',
-        'areaCode': 'KV01',
-        'areaName': 'Khu vuc 1',
-        'lastReading': 145.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH004',
-        'customerName': 'Pham Thi Dung',
-        'address': '78 Duong Nguyen Hue, Phuong 4',
-        'phoneNumber': '0901000004',
-        'areaCode': 'KV01',
-        'areaName': 'Khu vuc 1',
-        'lastReading': 88.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH005',
-        'customerName': 'Vu Minh Duc',
-        'address': '90 Duong Phan Dang Luu, Phuong 5',
-        'phoneNumber': '0901000005',
-        'areaCode': 'KV02',
-        'areaName': 'Khu vuc 2',
-        'lastReading': 174.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15500.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH006',
-        'customerName': 'Bui Ngoc Ha',
-        'address': '11 Duong Quang Trung, Phuong 6',
-        'phoneNumber': '0901000006',
-        'areaCode': 'KV02',
-        'areaName': 'Khu vuc 2',
-        'lastReading': 112.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH007',
-        'customerName': 'Dang Gia Huy',
-        'address': '25 Duong Cach Mang Thang 8, Phuong 7',
-        'phoneNumber': '0901000007',
-        'areaCode': 'KV02',
-        'areaName': 'Khu vuc 2',
-        'lastReading': 67.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH008',
-        'customerName': 'Ho Thi Lan',
-        'address': '39 Duong Hai Ba Trung, Phuong 8',
-        'phoneNumber': '0901000008',
-        'areaCode': 'KV02',
-        'areaName': 'Khu vuc 2',
-        'lastReading': 132.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15200.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH009',
-        'customerName': 'Ngo Van Minh',
-        'address': '47 Duong Ly Thuong Kiet, Phuong 9',
-        'phoneNumber': '0901000009',
-        'areaCode': 'KV03',
-        'areaName': 'Khu vuc 3',
-        'lastReading': 121.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH010',
-        'customerName': 'Duong Thu Thao',
-        'address': '63 Duong Hoang Hoa Tham, Phuong 10',
-        'phoneNumber': '0901000010',
-        'areaCode': 'KV03',
-        'areaName': 'Khu vuc 3',
-        'lastReading': 159.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15800.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH011',
-        'customerName': 'Mai Cong Tan',
-        'address': '71 Duong Pasteur, Phuong 11',
-        'phoneNumber': '0901000011',
-        'areaCode': 'KV03',
-        'areaName': 'Khu vuc 3',
-        'lastReading': 104.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-      {
-        'customerCode': 'KH012',
-        'customerName': 'To Ngoc Yen',
-        'address': '88 Duong Pham Ngu Lao, Phuong 12',
-        'phoneNumber': '0901000012',
-        'areaCode': 'KV03',
-        'areaName': 'Khu vuc 3',
-        'lastReading': 140.0,
-        'lastReadingDate': '2026-05-01',
-        'pricePerUnit': 15000.0,
-        'createdAt': now,
-        'updatedAt': now,
-      },
-    ];
-
-    for (final customer in demoCustomers) {
-      await db.insert('customers', customer);
-    }
+    // Không tạo demo data - data sẽ được tải từ Firebase
   }
 
   Future<User?> login(String username, String password) async {
@@ -280,81 +174,499 @@ class DatabaseHelper {
       'users',
       where: 'username = ? AND password = ?',
       whereArgs: [username, password],
+      limit: 1,
     );
-
     if (results.isEmpty) {
       return null;
     }
-
     return User.fromMap(results.first);
   }
 
-  Future<User?> getUserById(int id) async {
+  Future<List<Map<String, dynamic>>> getCustomersForUser(User user) async {
     final db = await database;
-    final results = await db.query(
-      'users',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    if (results.isEmpty) {
-      return null;
+    if (user.role == 'admin') {
+      return db.query('customers', orderBy: 'areaCode ASC, customerCode ASC');
     }
 
-    return User.fromMap(results.first);
-  }
-
-  Future<List<User>> getAllUsers() async {
-    final db = await database;
-    final results = await db.query('users');
-    return results.map((map) => User.fromMap(map)).toList();
-  }
-
-  Future<List<Map<String, dynamic>>> getAllCustomers() async {
-    final db = await database;
-    return db.query('customers', orderBy: 'customerCode ASC');
-  }
-
-  Future<List<Map<String, dynamic>>> getCustomersByArea(String areaCode) async {
-    final db = await database;
     return db.query(
       'customers',
       where: 'areaCode = ?',
-      whereArgs: [areaCode],
+      whereArgs: [user.areaCode],
       orderBy: 'customerCode ASC',
     );
   }
 
-  Future<List<Map<String, dynamic>>> getCustomersForUser(User user) async {
-    return getCustomersByArea(user.areaCode);
+  Future<List<Map<String, dynamic>>> getRecordsForUser(
+    User user, {
+    String? recordType,
+  }) async {
+    final db = await database;
+    final whereParts = <String>[];
+    final args = <Object?>[];
+
+    if (user.role != 'admin') {
+      whereParts.add('c.areaCode = ?');
+      args.add(user.areaCode);
+    }
+    if (recordType != null) {
+      whereParts.add('r.recordType = ?');
+      args.add(recordType);
+    }
+
+    final whereClause = whereParts.isEmpty ? '' : 'WHERE ${whereParts.join(' AND ')}';
+
+    return db.rawQuery('''
+      SELECT
+        r.id,
+        r.customerCode,
+        r.recordType,
+        r.oldReading,
+        r.newReading,
+        r.amountCollected,
+        r.syncStatus,
+        r.recordedAt,
+        r.collectorName,
+        r.note,
+        r.billingMonth,
+        r.paymentMethod,
+        r.paymentStatus,
+        r.proofImagePath,
+        r.syncedAt,
+        c.customerName,
+        c.address,
+        c.pricePerUnit,
+        c.areaCode,
+        c.areaName
+      FROM meter_records r
+      INNER JOIN customers c ON c.customerCode = r.customerCode
+      $whereClause
+      ORDER BY r.recordedAt DESC, r.id DESC
+    ''', args);
   }
 
-  Future<int> insertUser(User user) async {
+  Future<int> countPendingRecordsForUser(User user) async {
     final db = await database;
-    return db.insert('users', user.toMap());
-  }
 
-  Future<int> updateUser(User user) async {
-    final db = await database;
-    return db.update(
-      'users',
-      user.toMap(),
-      where: 'id = ?',
-      whereArgs: [user.id],
+    if (user.role == 'admin') {
+      final result = await db.rawQuery(
+        "SELECT COUNT(*) AS total FROM meter_records WHERE syncStatus = 'pending'",
+      );
+      return _readCount(result.first['total']);
+    }
+
+    final result = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS total
+      FROM meter_records r
+      INNER JOIN customers c ON c.customerCode = r.customerCode
+      WHERE c.areaCode = ? AND r.syncStatus = 'pending'
+      ''',
+      [user.areaCode],
     );
+    return _readCount(result.first['total']);
   }
 
-  Future<int> deleteUser(int id) async {
+  Future<int> getDownloadedCustomerCountForUser(User user) async {
     final db = await database;
-    return db.delete(
-      'users',
-      where: 'id = ?',
-      whereArgs: [id],
+    if (user.role == 'admin') {
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) AS total FROM customers',
+      );
+      return _readCount(result.first['total']);
+    }
+
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM customers WHERE areaCode = ?',
+      [user.areaCode],
     );
+    return _readCount(result.first['total']);
+  }
+
+  Future<DateTime?> getLastLocalSyncTimeForUser(User user) async {
+    final db = await database;
+    final result = user.role == 'admin'
+        ? await db.rawQuery(
+            'SELECT MAX(syncedAt) AS latest FROM meter_records WHERE syncedAt IS NOT NULL',
+          )
+        : await db.rawQuery(
+            '''
+            SELECT MAX(r.syncedAt) AS latest
+            FROM meter_records r
+            INNER JOIN customers c ON c.customerCode = r.customerCode
+            WHERE c.areaCode = ? AND r.syncedAt IS NOT NULL
+            ''',
+            [user.areaCode],
+          );
+
+    final raw = result.first['latest'] as String?;
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
+  }
+
+  Future<int> downloadLatestRouteForUser(User user) async {
+    final db = await database;
+
+    return db.transaction((txn) async {
+      final serverCustomers = user.role == 'admin'
+          ? await txn.query('server_customers', orderBy: 'areaCode ASC, customerCode ASC')
+          : await txn.query(
+              'server_customers',
+              where: 'areaCode = ?',
+              whereArgs: [user.areaCode],
+              orderBy: 'customerCode ASC',
+            );
+
+      if (user.role == 'admin') {
+        await txn.delete('customers');
+      } else {
+        await txn.delete(
+          'customers',
+          where: 'areaCode = ?',
+          whereArgs: [user.areaCode],
+        );
+      }
+
+      for (final customer in serverCustomers) {
+        final localCustomer = Map<String, Object?>.from(customer)
+          ..remove('id')
+          ..['routeStatus'] = 'uncollected';
+        await txn.insert('customers', localCustomer);
+      }
+
+      if (user.role == 'admin') {
+        await txn.rawDelete(
+          '''
+          DELETE FROM meter_records
+          WHERE syncStatus = 'synced'
+          ''',
+        );
+      } else {
+        await txn.rawDelete(
+          '''
+          DELETE FROM meter_records
+          WHERE syncStatus = 'synced'
+            AND customerCode IN (
+              SELECT customerCode FROM customers WHERE areaCode = ?
+            )
+          ''',
+          [user.areaCode],
+        );
+      }
+
+      final serverRecords = user.role == 'admin'
+          ? await txn.query('server_records', orderBy: 'recordedAt DESC, id DESC')
+          : await txn.rawQuery(
+              '''
+              SELECT r.*
+              FROM server_records r
+              INNER JOIN server_customers c ON c.customerCode = r.customerCode
+              WHERE c.areaCode = ?
+              ORDER BY r.recordedAt DESC, r.id DESC
+              ''',
+              [user.areaCode],
+            );
+
+      for (final record in serverRecords) {
+        final map = Map<String, Object?>.from(record);
+        map.remove('id');
+        await txn.insert('meter_records', map);
+      }
+
+      return serverCustomers.length;
+    });
+  }
+
+  Future<int> syncPendingRecordsToServer(User user) async {
+    final db = await database;
+
+    return db.transaction((txn) async {
+      final pendingRecords = user.role == 'admin'
+          ? await txn.query(
+              'meter_records',
+              where: 'syncStatus = ?',
+              whereArgs: ['pending'],
+              orderBy: 'recordedAt ASC, id ASC',
+            )
+          : await txn.rawQuery(
+              '''
+              SELECT r.*
+              FROM meter_records r
+              INNER JOIN customers c ON c.customerCode = r.customerCode
+              WHERE c.areaCode = ? AND r.syncStatus = 'pending'
+              ORDER BY r.recordedAt ASC, r.id ASC
+              ''',
+              [user.areaCode],
+            );
+
+      var syncedCount = 0;
+
+      for (final rawRecord in pendingRecords) {
+        final record = MeterRecord.fromMap(rawRecord);
+        final exists = await _serverRecordExists(txn, record);
+        final nowIso = DateTime.now().toIso8601String();
+
+        if (!exists) {
+          await txn.insert('server_records', {
+            'customerCode': record.customerCode,
+            'recordType': record.recordType,
+            'oldReading': record.oldReading,
+            'newReading': record.newReading,
+            'amountCollected': record.amountCollected,
+            'syncStatus': 'synced',
+            'recordedAt': record.recordedAt.toIso8601String(),
+            'collectorName': record.collectorName,
+            'note': record.note,
+            'billingMonth': record.billingMonth,
+            'paymentMethod': record.paymentMethod,
+            'paymentStatus': record.paymentStatus,
+            'proofImagePath': record.proofImagePath,
+            'syncedAt': nowIso,
+          });
+
+          if (record.recordType == 'meter') {
+            await _applyMeterEffectToServerCustomer(txn, record);
+          } else {
+            await _applyPaymentEffectToServerCustomer(txn, record);
+          }
+        }
+
+        await txn.update(
+          'meter_records',
+          {
+            'syncStatus': 'synced',
+            'syncedAt': nowIso,
+          },
+          where: 'id = ?',
+          whereArgs: [record.id],
+        );
+        syncedCount++;
+      }
+
+      return syncedCount;
+    });
+  }
+
+  Future<int> insertMeterRecord(MeterRecord record) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final id = await txn.insert(
+        'meter_records',
+        record.toDatabaseMap()..remove('id'),
+      );
+      await _applyMeterEffectToLocalCustomer(txn, record);
+      return id;
+    });
+  }
+
+  Future<int> insertPaymentRecord(MeterRecord record) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final id = await txn.insert(
+        'meter_records',
+        record.toDatabaseMap()..remove('id'),
+      );
+      await _applyPaymentEffectToLocalCustomer(txn, record);
+      return id;
+    });
+  }
+
+  Future<int> estimateCacheSizeMb() async {
+    final db = await database;
+    final customerCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM customers'),
+        ) ??
+        0;
+    final recordCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM meter_records'),
+        ) ??
+        0;
+    return math.max(8, ((customerCount * 2) + recordCount).clamp(8, 128));
+  }
+
+  Future<void> clearSyncedLocalCache(User user) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      if (user.role == 'admin') {
+        await txn.delete('meter_records', where: 'syncStatus = ?', whereArgs: ['synced']);
+      } else {
+        await txn.rawDelete(
+          '''
+          DELETE FROM meter_records
+          WHERE syncStatus = 'synced'
+            AND customerCode IN (
+              SELECT customerCode FROM customers WHERE areaCode = ?
+            )
+          ''',
+          [user.areaCode],
+        );
+      }
+    });
   }
 
   Future<void> close() async {
-    final db = await database;
-    await db.close();
+    if (_database == null) {
+      return;
+    }
+    await _database!.close();
+    _database = null;
+  }
+
+  Future<void> _applyMeterEffectToLocalCustomer(
+    Transaction txn,
+    MeterRecord record,
+  ) async {
+    final customer = await _getCustomer(txn, 'customers', record.customerCode);
+    if (customer == null) {
+      return;
+    }
+
+    final consumed = math.max(
+      0,
+      (record.newReading ?? customer.lastReading ?? 0) -
+          (record.oldReading ?? customer.lastReading ?? 0),
+    );
+    final billAmount = consumed * customer.pricePerUnit;
+    await txn.update(
+      'customers',
+      {
+        'lastReading': record.newReading ?? customer.lastReading,
+        'lastReadingDate': record.recordedAt.toIso8601String(),
+        'totalDebt': customer.totalDebt + billAmount,
+        'debtMonths': customer.debtMonths + (billAmount > 0 ? 1 : 0),
+        'routeStatus': 'reading_done',
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'customerCode = ?',
+      whereArgs: [record.customerCode],
+    );
+  }
+
+  Future<void> _applyPaymentEffectToLocalCustomer(
+    Transaction txn,
+    MeterRecord record,
+  ) async {
+    final customer = await _getCustomer(txn, 'customers', record.customerCode);
+    if (customer == null) {
+      return;
+    }
+
+    final remaining = math.max(0, customer.totalDebt - (record.amountCollected ?? 0));
+    await txn.update(
+      'customers',
+      {
+        'totalDebt': remaining,
+        'debtMonths': remaining <= 0 ? 0 : customer.debtMonths,
+        'lastPaymentDate': record.recordedAt.toIso8601String(),
+        'routeStatus': remaining <= 0 ? 'collected' : 'partial',
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'customerCode = ?',
+      whereArgs: [record.customerCode],
+    );
+  }
+
+  Future<void> _applyMeterEffectToServerCustomer(
+    Transaction txn,
+    MeterRecord record,
+  ) async {
+    final customer = await _getCustomer(txn, 'server_customers', record.customerCode);
+    if (customer == null) {
+      return;
+    }
+
+    final consumed = math.max(
+      0,
+      (record.newReading ?? customer.lastReading ?? 0) -
+          (record.oldReading ?? customer.lastReading ?? 0),
+    );
+    final billAmount = consumed * customer.pricePerUnit;
+    await txn.update(
+      'server_customers',
+      {
+        'lastReading': record.newReading ?? customer.lastReading,
+        'lastReadingDate': record.recordedAt.toIso8601String(),
+        'totalDebt': customer.totalDebt + billAmount,
+        'debtMonths': customer.debtMonths + (billAmount > 0 ? 1 : 0),
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'customerCode = ?',
+      whereArgs: [record.customerCode],
+    );
+  }
+
+  Future<void> _applyPaymentEffectToServerCustomer(
+    Transaction txn,
+    MeterRecord record,
+  ) async {
+    final customer = await _getCustomer(txn, 'server_customers', record.customerCode);
+    if (customer == null) {
+      return;
+    }
+
+    final remaining = math.max(0, customer.totalDebt - (record.amountCollected ?? 0));
+    await txn.update(
+      'server_customers',
+      {
+        'totalDebt': remaining,
+        'debtMonths': remaining <= 0 ? 0 : customer.debtMonths,
+        'lastPaymentDate': record.recordedAt.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'customerCode = ?',
+      whereArgs: [record.customerCode],
+    );
+  }
+
+  Future<Customer?> _getCustomer(
+    Transaction txn,
+    String table,
+    String customerCode,
+  ) async {
+    final result = await txn.query(
+      table,
+      where: 'customerCode = ?',
+      whereArgs: [customerCode],
+      limit: 1,
+    );
+    if (result.isEmpty) {
+      return null;
+    }
+    return Customer.fromMap(result.first);
+  }
+
+  Future<bool> _serverRecordExists(Transaction txn, MeterRecord record) async {
+    final result = await txn.query(
+      'server_records',
+      where: '''
+        customerCode = ?
+        AND recordType = ?
+        AND recordedAt = ?
+        AND IFNULL(amountCollected, -1) = IFNULL(?, -1)
+        AND IFNULL(newReading, -1) = IFNULL(?, -1)
+      ''',
+      whereArgs: [
+        record.customerCode,
+        record.recordType,
+        record.recordedAt.toIso8601String(),
+        record.amountCollected,
+        record.newReading,
+      ],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  int _readCount(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    return int.tryParse(value.toString()) ?? 0;
+  }
+
+  Future<String> _databaseFilePath() async {
+    final databasePath = await getDatabasesPath();
+    return join(databasePath, 'water_meter_app.db');
   }
 }
