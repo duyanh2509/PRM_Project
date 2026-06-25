@@ -2,71 +2,85 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database_helper.dart';
 import '../models/user_model.dart';
+import '../services/firebase_service.dart';
 
-/// Provider quản lý trạng thái đăng nhập.
 class AuthProvider with ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
 
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final FirebaseService _firebaseService = FirebaseService.instance;
 
   User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isLoggedIn => _currentUser != null;
 
-  /// Đăng nhập.
   Future<bool> login(String username, String password) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      if (username.trim().isEmpty) {
-        _errorMessage = 'Vui lòng nhập tên đăng nhập';
+      final normalizedUsername = username.trim();
+      final normalizedPassword = password.trim();
+
+      if (normalizedUsername.isEmpty) {
+        _errorMessage = 'Vui long nhap ten dang nhap';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      if (password.isEmpty) {
-        _errorMessage = 'Vui lòng nhập mật khẩu';
+      if (normalizedPassword.isEmpty) {
+        _errorMessage = 'Vui long nhap mat khau';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      final user = await _dbHelper.login(username.trim(), password);
+      final localUser = await _dbHelper.login(
+        normalizedUsername,
+        normalizedPassword,
+      );
+      if (localUser != null) {
+        _currentUser = localUser;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
 
-      if (user == null) {
-        _errorMessage = 'Tên đăng nhập hoặc mật khẩu không đúng';
+      final firebaseUser = await _firebaseService.authenticateStaff(
+        normalizedUsername,
+        normalizedPassword,
+      );
+      if (firebaseUser == null) {
+        _errorMessage = 'Ten dang nhap hoac mat khau khong dung';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      _currentUser = user;
-      _errorMessage = null;
+      await _dbHelper.upsertUser(firebaseUser);
+      _currentUser = firebaseUser;
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Lỗi: ${e.toString()}';
+      _errorMessage = 'Loi: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// Đăng xuất.
   Future<void> logout() async {
     _currentUser = null;
     _errorMessage = null;
     notifyListeners();
   }
 
-  /// Xóa thông báo lỗi.
   void clearError() {
     _errorMessage = null;
     notifyListeners();

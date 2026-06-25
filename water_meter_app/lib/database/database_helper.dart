@@ -182,6 +182,30 @@ class DatabaseHelper {
     return User.fromMap(results.first);
   }
 
+  Future<void> upsertUser(User user) async {
+    final db = await database;
+    final existing = await db.query(
+      'users',
+      where: 'username = ?',
+      whereArgs: [user.username],
+      limit: 1,
+    );
+
+    final data = user.toMap()..remove('id');
+
+    if (existing.isEmpty) {
+      await db.insert('users', data);
+      return;
+    }
+
+    await db.update(
+      'users',
+      data,
+      where: 'username = ?',
+      whereArgs: [user.username],
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getCustomersForUser(User user) async {
     final db = await database;
     if (user.role == 'admin') {
@@ -378,6 +402,61 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> replaceServerCustomersForUser(
+    User user,
+    List<Map<String, Object?>> customers,
+  ) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      if (user.role == 'admin') {
+        await txn.delete('server_customers');
+      } else {
+        await txn.delete(
+          'server_customers',
+          where: 'areaCode = ?',
+          whereArgs: [user.areaCode],
+        );
+      }
+
+      for (final customer in customers) {
+        final data = Map<String, Object?>.from(customer)..remove('id');
+        await txn.insert('server_customers', data);
+      }
+    });
+  }
+
+  Future<void> replaceServerRecordsForUser(
+    User user,
+    List<Map<String, Object?>> records,
+  ) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      if (user.role == 'admin') {
+        await txn.delete('server_records');
+      } else {
+        await txn.rawDelete(
+          '''
+          DELETE FROM server_records
+          WHERE customerCode IN (
+            SELECT customerCode FROM server_customers WHERE areaCode = ?
+          )
+          ''',
+          [user.areaCode],
+        );
+      }
+
+      for (final record in records) {
+        final data = Map<String, Object?>.from(record)
+          ..remove('id')
+          ..remove('areaCode')
+          ..remove('areaName');
+        await txn.insert('server_records', data);
+      }
+    });
+  }
+
   Future<int> syncPendingRecordsToServer(User user) async {
     final db = await database;
 
@@ -445,6 +524,120 @@ class DatabaseHelper {
       }
 
       return syncedCount;
+    });
+  }
+
+  Future<List<MeterRecord>> getPendingRecordsForUser(User user) async {
+    final db = await database;
+    final rows = user.role == 'admin'
+        ? await db.rawQuery(
+            '''
+            SELECT
+              r.id,
+              r.customerCode,
+              r.recordType,
+              r.oldReading,
+              r.newReading,
+              r.amountCollected,
+              r.syncStatus,
+              r.recordedAt,
+              r.collectorName,
+              r.note,
+              r.billingMonth,
+              r.paymentMethod,
+              r.paymentStatus,
+              r.proofImagePath,
+              r.syncedAt,
+              c.customerName,
+              c.address,
+              c.pricePerUnit,
+              c.areaCode,
+              c.areaName
+            FROM meter_records r
+            INNER JOIN customers c ON c.customerCode = r.customerCode
+            WHERE r.syncStatus = 'pending'
+            ORDER BY r.recordedAt ASC, r.id ASC
+            ''',
+          )
+        : await db.rawQuery(
+            '''
+            SELECT
+              r.id,
+              r.customerCode,
+              r.recordType,
+              r.oldReading,
+              r.newReading,
+              r.amountCollected,
+              r.syncStatus,
+              r.recordedAt,
+              r.collectorName,
+              r.note,
+              r.billingMonth,
+              r.paymentMethod,
+              r.paymentStatus,
+              r.proofImagePath,
+              r.syncedAt,
+              c.customerName,
+              c.address,
+              c.pricePerUnit,
+              c.areaCode,
+              c.areaName
+            FROM meter_records r
+            INNER JOIN customers c ON c.customerCode = r.customerCode
+            WHERE c.areaCode = ? AND r.syncStatus = 'pending'
+            ORDER BY r.recordedAt ASC, r.id ASC
+            ''',
+            [user.areaCode],
+          );
+
+    return rows.map(MeterRecord.fromMap).toList();
+  }
+
+  Future<void> markRecordSynced(
+    MeterRecord record, {
+    required DateTime syncedAt,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      final nowIso = syncedAt.toIso8601String();
+      final exists = await _serverRecordExists(txn, record);
+
+      if (!exists) {
+        await txn.insert('server_records', {
+          'customerCode': record.customerCode,
+          'recordType': record.recordType,
+          'oldReading': record.oldReading,
+          'newReading': record.newReading,
+          'amountCollected': record.amountCollected,
+          'syncStatus': 'synced',
+          'recordedAt': record.recordedAt.toIso8601String(),
+          'collectorName': record.collectorName,
+          'note': record.note,
+          'billingMonth': record.billingMonth,
+          'paymentMethod': record.paymentMethod,
+          'paymentStatus': record.paymentStatus,
+          'proofImagePath': record.proofImagePath,
+          'syncedAt': nowIso,
+        });
+
+        if (record.recordType == 'meter') {
+          await _applyMeterEffectToServerCustomer(txn, record);
+        } else {
+          await _applyPaymentEffectToServerCustomer(txn, record);
+        }
+      }
+
+      await txn.update(
+        'meter_records',
+        {
+          'syncStatus': 'synced',
+          'proofImagePath': record.proofImagePath,
+          'syncedAt': nowIso,
+        },
+        where: 'id = ?',
+        whereArgs: [record.id],
+      );
     });
   }
 

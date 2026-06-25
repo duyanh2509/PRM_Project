@@ -53,11 +53,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
             final baseRecords = _segmentIndex == 0
                 ? historyProvider.meterRecords
                 : historyProvider.paymentRecords;
-            final monthRecords = baseRecords.where((record) {
-              return record.recordedAt.year == now.year &&
-                  record.recordedAt.month == now.month;
-            }).toList();
-            final filteredRecords = monthRecords.where((record) {
+            // Show all records, not just current month
+            final allRecords = baseRecords;
+            final filteredRecords = allRecords.where((record) {
               final keyword = _searchQuery.trim().toLowerCase();
               if (keyword.isEmpty) {
                 return true;
@@ -111,17 +109,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                       children: [
                         _HistoryOverview(
-                          records: monthRecords,
-                          title: _segmentIndex == 0 ? 'Hôm nay' : 'Thu tiền',
+                          records: allRecords,
+                          title: _segmentIndex == 0 ? 'Ghi chỉ số' : 'Thu tiền',
                         ),
                         const SizedBox(height: 14),
-                        if (historyProvider.isLoading && monthRecords.isEmpty)
+                        if (historyProvider.isLoading && allRecords.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 120),
                             child: Center(child: CircularProgressIndicator()),
                           )
                         else if (historyProvider.errorMessage != null &&
-                            monthRecords.isEmpty)
+                            allRecords.isEmpty)
                           _EmptyState(
                             icon: Icons.error_outline_rounded,
                             title: 'Không thể tải lịch sử',

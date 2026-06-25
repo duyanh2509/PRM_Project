@@ -52,14 +52,18 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
         .where((record) => record.customerCode == widget.customer.customerCode)
         .toList()
       ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
-    final paymentRecords = historyProvider.paymentRecords
-        .where((record) => record.customerCode == widget.customer.customerCode)
-        .toList()
-      ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
-
     final dueAmount = widget.customer.totalDebt;
     final collectedAmount = _parseCurrency(_amountController.text);
     final remainingAmount = (dueAmount - collectedAmount).clamp(
+      0.0,
+      double.infinity,
+    );
+    final currentMonthAmount = _resolveCurrentMonthAmount(
+      meterRecords: meterRecords,
+      totalDebt: dueAmount,
+      pricePerUnit: widget.customer.pricePerUnit,
+    );
+    final previousDebtAmount = (dueAmount - currentMonthAmount).clamp(
       0.0,
       double.infinity,
     );
@@ -150,6 +154,8 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
             _CustomerSummaryCard(
               customer: widget.customer,
               dueAmount: dueAmount,
+              previousDebtAmount: previousDebtAmount,
+              currentMonthAmount: currentMonthAmount,
               currentPeriod: currentPeriod,
             ),
             const SizedBox(height: 18),
@@ -167,6 +173,9 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
             _PaymentDataCard(
               currentReading: latestReading,
               dueAmount: dueAmount,
+              previousDebtAmount: previousDebtAmount,
+              currentMonthAmount: currentMonthAmount,
+              currentPeriod: currentPeriod,
               collectedAmount: collectedAmount,
               remainingAmount: remainingAmount,
               amountController: _amountController,
@@ -342,11 +351,15 @@ class _CustomerSummaryCard extends StatelessWidget {
   const _CustomerSummaryCard({
     required this.customer,
     required this.dueAmount,
+    required this.previousDebtAmount,
+    required this.currentMonthAmount,
     required this.currentPeriod,
   });
 
   final Customer customer;
   final double dueAmount;
+  final double previousDebtAmount;
+  final double currentMonthAmount;
   final String currentPeriod;
 
   @override
@@ -404,6 +417,18 @@ class _CustomerSummaryCard extends StatelessWidget {
                     fontSize: 14,
                     color: Color(0xFF4B5563),
                   ),
+                ),
+                const SizedBox(height: 12),
+                _BreakdownLine(
+                  label: 'Nợ kỳ trước',
+                  value: '${formatter.format(previousDebtAmount)} đ',
+                  valueColor: const Color(0xFFB45309),
+                ),
+                const SizedBox(height: 6),
+                _BreakdownLine(
+                  label: 'Tiền nước kỳ này',
+                  value: '${formatter.format(currentMonthAmount)} đ',
+                  valueColor: const Color(0xFF1D4ED8),
                 ),
               ],
             ),
@@ -665,6 +690,9 @@ class _PaymentDataCard extends StatelessWidget {
   const _PaymentDataCard({
     required this.currentReading,
     required this.dueAmount,
+    required this.previousDebtAmount,
+    required this.currentMonthAmount,
+    required this.currentPeriod,
     required this.collectedAmount,
     required this.remainingAmount,
     required this.amountController,
@@ -673,6 +701,9 @@ class _PaymentDataCard extends StatelessWidget {
 
   final double currentReading;
   final double dueAmount;
+  final double previousDebtAmount;
+  final double currentMonthAmount;
+  final String currentPeriod;
   final double collectedAmount;
   final double remainingAmount;
   final TextEditingController amountController;
@@ -722,12 +753,46 @@ class _PaymentDataCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _DataMetric(
-                  label: 'Công nợ cần thu',
+                  label: 'Tổng phải thu',
                   value: '${formatter.format(dueAmount)} đ',
                   accent: const Color(0xFFEF4444),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                _AmountBreakdownRow(
+                  label: 'Nợ tháng trước',
+                  value: '${formatter.format(previousDebtAmount)} đ',
+                  valueColor: const Color(0xFFB45309),
+                ),
+                const SizedBox(height: 10),
+                _AmountBreakdownRow(
+                  label: 'Tiền nước tháng này ($currentPeriod)',
+                  value: '${formatter.format(currentMonthAmount)} đ',
+                  valueColor: const Color(0xFF1D4ED8),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1),
+                ),
+                _AmountBreakdownRow(
+                  label: 'Tổng cộng',
+                  value: '${formatter.format(dueAmount)} đ',
+                  valueColor: const Color(0xFFDC2626),
+                  isBold: true,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -832,6 +897,83 @@ class _DataMetric extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BreakdownLine extends StatelessWidget {
+  const _BreakdownLine({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AmountBreakdownRow extends StatelessWidget {
+  const _AmountBreakdownRow({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    this.isBold = false,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+  final bool isBold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: isBold ? 14 : 13,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+              color: const Color(0xFF374151),
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isBold ? 16 : 14,
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1052,4 +1194,19 @@ String _buildCurrentPeriod(DateTime dateTime) {
 
 String _buildBillingMonth(DateTime dateTime) {
   return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}';
+}
+
+double _resolveCurrentMonthAmount({
+  required List<MeterRecord> meterRecords,
+  required double totalDebt,
+  required double pricePerUnit,
+}) {
+  if (meterRecords.isEmpty) {
+    return 0;
+  }
+
+  final latestMeter = meterRecords.first;
+  final consumedUnits = latestMeter.consumedUnits ?? 0;
+  final currentMonthAmount = (consumedUnits.clamp(0.0, double.infinity)) * pricePerUnit;
+  return currentMonthAmount.clamp(0.0, totalDebt);
 }
