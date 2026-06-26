@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -20,7 +23,8 @@ class CustomerDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liveCustomer = context
+    final liveCustomer =
+        context
             .watch<CustomerListProvider>()
             .customers
             .cast<Customer?>()
@@ -30,21 +34,24 @@ class CustomerDetailScreen extends StatelessWidget {
             ) ??
         customer;
     final historyProvider = context.watch<HistoryProvider>();
-    final meterRecords = historyProvider.meterRecords
-        .where((record) => record.customerCode == liveCustomer.customerCode)
-        .toList()
-      ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
-    final paymentRecords = historyProvider.paymentRecords
-        .where((record) => record.customerCode == liveCustomer.customerCode)
-        .toList()
-      ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    final meterRecords =
+        historyProvider.meterRecords
+            .where((record) => record.customerCode == liveCustomer.customerCode)
+            .toList()
+          ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    final paymentRecords =
+        historyProvider.paymentRecords
+            .where((record) => record.customerCode == liveCustomer.customerCode)
+            .toList()
+          ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
 
     final chartPoints = _buildChartPoints(liveCustomer, meterRecords);
     final galleryItems = _buildGalleryItems(liveCustomer, meterRecords);
     final note = _buildStaffNote(liveCustomer, meterRecords);
     final debt = _DebtSummary(
       amount: liveCustomer.totalDebt,
-      isOverdue: liveCustomer.debtMonths >= 2 || liveCustomer.totalDebt >= 200000,
+      isOverdue:
+          liveCustomer.debtMonths >= 2 || liveCustomer.totalDebt >= 200000,
     );
     final latestPayment = paymentRecords.isEmpty ? null : paymentRecords.first;
     final collectionStatus = resolveCustomerCollectionStatus(
@@ -125,10 +132,7 @@ class CustomerDetailScreen extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({
-    required this.customer,
-    required this.collectionStatus,
-  });
+  const _ProfileCard({required this.customer, required this.collectionStatus});
 
   final Customer customer;
   final CustomerCollectionStatus collectionStatus;
@@ -174,8 +178,12 @@ class _ProfileCard extends StatelessWidget {
                         ),
                         _TagChip(
                           label: collectionStatus.label,
-                          foreground: _collectionStatusForeground(collectionStatus.stage),
-                          background: _collectionStatusBackground(collectionStatus.stage),
+                          foreground: _collectionStatusForeground(
+                            collectionStatus.stage,
+                          ),
+                          background: _collectionStatusBackground(
+                            collectionStatus.stage,
+                          ),
                         ),
                       ],
                     ),
@@ -247,10 +255,7 @@ Color _collectionStatusForeground(CollectionStage stage) {
 }
 
 class _DebtCard extends StatelessWidget {
-  const _DebtCard({
-    required this.summary,
-    required this.latestPaymentDate,
-  });
+  const _DebtCard({required this.summary, required this.latestPaymentDate});
 
   final _DebtSummary summary;
   final DateTime? latestPaymentDate;
@@ -355,7 +360,11 @@ class _UsageChartCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.trending_up_rounded, color: Color(0xFF3B82F6), size: 18),
+              Icon(
+                Icons.trending_up_rounded,
+                color: Color(0xFF3B82F6),
+                size: 18,
+              ),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -374,10 +383,7 @@ class _UsageChartCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            height: 180,
-            child: _UsageChart(points: points),
-          ),
+          SizedBox(height: 180, child: _UsageChart(points: points)),
         ],
       ),
     );
@@ -396,13 +402,15 @@ class _UsageChart extends StatelessWidget {
         : points;
     final maxValue = safePoints.map((point) => point.value).reduce(math.max);
     final minValue = safePoints.map((point) => point.value).reduce(math.min);
-    final topValue = (((maxValue / 4).ceil() * 4).toDouble().clamp(16, 9999) as num)
-        .toDouble();
-    final bottomValue =
-        (((minValue / 4).floor() * 4).toDouble().clamp(0, topValue - 4) as num)
-            .toDouble();
-    final step = (math.max(4.0, ((topValue - bottomValue) / 4).ceilToDouble()) as num)
-        .toDouble();
+    final topValue = math.max(
+      16.0,
+      math.min(9999.0, ((maxValue / 4).ceil() * 4).toDouble()),
+    );
+    final bottomValue = math.max(
+      0.0,
+      math.min(topValue - 4, ((minValue / 4).floor() * 4).toDouble()),
+    );
+    final step = math.max(4.0, ((topValue - bottomValue) / 4).ceilToDouble());
     final yValues = List<double>.generate(
       5,
       (index) => bottomValue + step * (4 - index),
@@ -419,7 +427,10 @@ class _UsageChart extends StatelessWidget {
                 .map(
                   (value) => Text(
                     value.toStringAsFixed(0),
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF4B5563)),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF4B5563),
+                    ),
                   ),
                 )
                 .toList(),
@@ -446,7 +457,10 @@ class _UsageChart extends StatelessWidget {
                     .map(
                       (point) => Text(
                         point.label,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF4B5563)),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF4B5563),
+                        ),
                       ),
                     )
                     .toList(),
@@ -480,18 +494,17 @@ class _UsageChartPainter extends CustomPainter {
 
     for (var i = 0; i < 5; i++) {
       final y = size.height * i / 4;
-      _drawDashedLine(
-        canvas,
-        Offset(0, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
+      _drawDashedLine(canvas, Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
     final normalizedPoints = <Offset>[];
     for (var i = 0; i < points.length; i++) {
-      final dx = points.length == 1 ? size.width / 2 : size.width * i / (points.length - 1);
-      final ratio = maxValue == minValue ? 0.5 : (points[i].value - minValue) / (maxValue - minValue);
+      final dx = points.length == 1
+          ? size.width / 2
+          : size.width * i / (points.length - 1);
+      final ratio = maxValue == minValue
+          ? 0.5
+          : (points[i].value - minValue) / (maxValue - minValue);
       final dy = size.height - (ratio * size.height);
       normalizedPoints.add(Offset(dx, dy.clamp(0, size.height)));
     }
@@ -505,7 +518,14 @@ class _UsageChartPainter extends CustomPainter {
       }
       final previous = normalizedPoints[i - 1];
       final controlX = (previous.dx + point.dx) / 2;
-      path.cubicTo(controlX, previous.dy, controlX, point.dy, point.dx, point.dy);
+      path.cubicTo(
+        controlX,
+        previous.dy,
+        controlX,
+        point.dy,
+        point.dx,
+        point.dy,
+      );
     }
 
     final linePaint = Paint()
@@ -576,7 +596,7 @@ class _LatestBillingCard extends StatelessWidget {
         children: [
           const _SectionTitle(
             icon: Icons.receipt_long_outlined,
-                title: 'Kỳ ghi gần nhất',
+            title: 'Kỳ ghi gần nhất',
           ),
           const SizedBox(height: 14),
           Row(
@@ -644,7 +664,10 @@ class _MeterPhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageFile = item.imagePath == null ? null : File(item.imagePath!);
+    final imagePath = item.imagePath;
+    final imageFile = imagePath == null || _isRemoteImagePath(imagePath)
+        ? null
+        : File(imagePath);
 
     return Container(
       width: 172,
@@ -661,16 +684,25 @@ class _MeterPhotoCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (imageFile != null && imageFile.existsSync())
+            if (imagePath != null && _isInlineImagePath(imagePath))
+              Image.memory(
+                _decodeInlineImage(imagePath),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const _ImagePlaceholder(),
+              )
+            else if (imagePath != null && _isRemoteImagePath(imagePath))
+              CachedNetworkImage(
+                imageUrl: imagePath,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                errorWidget: (_, _, _) => const _ImagePlaceholder(),
+              )
+            else if (imageFile != null && imageFile.existsSync())
               Image.file(imageFile, fit: BoxFit.cover)
             else
-              const Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  size: 72,
-                  color: Color(0xFFB8BAD2),
-                ),
-              ),
+              const _ImagePlaceholder(),
             Align(
               alignment: Alignment.bottomCenter,
               child: Container(
@@ -710,6 +742,17 @@ class _MeterPhotoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ImagePlaceholder extends StatelessWidget {
+  const _ImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Icon(Icons.image_outlined, size: 72, color: Color(0xFFB8BAD2)),
     );
   }
 }
@@ -789,7 +832,8 @@ class _BottomActionBar extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => PaymentCollectionScreen(customer: customer),
+                      builder: (_) =>
+                          PaymentCollectionScreen(customer: customer),
                     ),
                   );
                 },
@@ -873,10 +917,7 @@ class _InfoRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 2),
               Text(
@@ -987,16 +1028,16 @@ class _GalleryItem {
 }
 
 class _DebtSummary {
-  const _DebtSummary({
-    required this.amount,
-    required this.isOverdue,
-  });
+  const _DebtSummary({required this.amount, required this.isOverdue});
 
   final double amount;
   final bool isOverdue;
 }
 
-List<_ChartPoint> _buildChartPoints(Customer customer, List<MeterRecord> records) {
+List<_ChartPoint> _buildChartPoints(
+  Customer customer,
+  List<MeterRecord> records,
+) {
   final relevantRecords = records
       .where((record) => record.consumedUnits != null)
       .take(6)
@@ -1006,9 +1047,7 @@ List<_ChartPoint> _buildChartPoints(Customer customer, List<MeterRecord> records
 
   if (relevantRecords.isEmpty) {
     final baseDate = customer.lastReadingDate ?? DateTime.now();
-    return [
-      _ChartPoint(label: 'T${baseDate.month}', value: 0),
-    ];
+    return [_ChartPoint(label: 'T${baseDate.month}', value: 0)];
   }
 
   return relevantRecords
@@ -1021,7 +1060,10 @@ List<_ChartPoint> _buildChartPoints(Customer customer, List<MeterRecord> records
       .toList();
 }
 
-List<_GalleryItem> _buildGalleryItems(Customer customer, List<MeterRecord> records) {
+List<_GalleryItem> _buildGalleryItems(
+  Customer customer,
+  List<MeterRecord> records,
+) {
   final formatter = DateFormat('dd/MM/yyyy');
   final relevant = records.take(3).toList();
   if (relevant.isEmpty) {
@@ -1039,7 +1081,8 @@ List<_GalleryItem> _buildGalleryItems(Customer customer, List<MeterRecord> recor
       .map(
         (record) => _GalleryItem(
           dateLabel: formatter.format(record.recordedAt),
-          readingLabel: (record.newReading ?? record.oldReading ?? 0).toStringAsFixed(0),
+          readingLabel: (record.newReading ?? record.oldReading ?? 0)
+              .toStringAsFixed(0),
           imagePath: record.proofImagePath,
         ),
       )
@@ -1048,13 +1091,30 @@ List<_GalleryItem> _buildGalleryItems(Customer customer, List<MeterRecord> recor
 
 String _buildStaffNote(Customer customer, List<MeterRecord> records) {
   final noteRecord = records.cast<MeterRecord?>().firstWhere(
-        (record) => (record?.note ?? '').trim().isNotEmpty,
-        orElse: () => null,
-      );
+    (record) => (record?.note ?? '').trim().isNotEmpty,
+    orElse: () => null,
+  );
   if (noteRecord != null) {
     return noteRecord.note!.trim();
   }
   return 'Chưa có ghi chú hiện trường cho khách hàng này.';
+}
+
+bool _isRemoteImagePath(String path) {
+  final normalized = path.trim().toLowerCase();
+  return normalized.startsWith('http://') || normalized.startsWith('https://');
+}
+
+bool _isInlineImagePath(String path) {
+  return path.trim().toLowerCase().startsWith('data:image/');
+}
+
+Uint8List _decodeInlineImage(String path) {
+  final commaIndex = path.indexOf(',');
+  if (commaIndex < 0) {
+    return Uint8List(0);
+  }
+  return base64Decode(path.substring(commaIndex + 1));
 }
 
 String _initials(String fullName) {
@@ -1069,5 +1129,6 @@ String _initials(String fullName) {
   if (parts.length == 1) {
     return parts.first.substring(0, 1).toUpperCase();
   }
-  return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
+  return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'
+      .toUpperCase();
 }

@@ -1,11 +1,14 @@
+// ignore_for_file: avoid_print
+
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
 import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
+import 'cloudinary_service.dart';
 
 class FirebaseService {
   static final FirebaseService instance = FirebaseService._internal();
@@ -15,7 +18,7 @@ class FirebaseService {
   FirebaseService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  String? _lastImageUploadError;
 
   Future<Map<String, dynamic>?> getStaffByUsername(String username) async {
     try {
@@ -29,10 +32,7 @@ class FirebaseService {
         return null;
       }
 
-      return {
-        'id': snapshot.docs.first.id,
-        ...snapshot.docs.first.data(),
-      };
+      return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
     } catch (e) {
       print('Error getting staff: $e');
       return null;
@@ -67,9 +67,7 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> getAllStaff() async {
     try {
       final snapshot = await _firestore.collection('staff').get();
-      return snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
       print('Error getting all staff: $e');
       return [];
@@ -134,8 +132,7 @@ class FirebaseService {
 
       final filtered = records.where((record) {
         return _stringValue(record['areaCode']) == areaCode;
-      }).toList()
-        ..sort(_compareRecordMaps);
+      }).toList()..sort(_compareRecordMaps);
       return filtered;
     } catch (e) {
       print('Error downloading records: $e');
@@ -209,9 +206,7 @@ class FirebaseService {
           .orderBy('recordedAt', descending: true)
           .get();
 
-      return snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
       print('Error downloading readings: $e');
       return [];
@@ -242,9 +237,7 @@ class FirebaseService {
           .orderBy('recordedAt', descending: true)
           .get();
 
-      return snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
       print('Error downloading payments: $e');
       return [];
@@ -253,26 +246,72 @@ class FirebaseService {
 
   Future<String?> uploadMeterImage(File imageFile, String customerCode) async {
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${customerCode}_$timestamp.jpg';
-      final ref = _storage.ref().child('meter_images/$fileName');
+      _lastImageUploadError = null;
 
-      final uploadTask = await ref.putFile(imageFile);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-      print('Image uploaded: $downloadUrl');
-      return downloadUrl;
+      // Check file size before uploading to Cloudinary.
+      final fileSize = await imageFile.length();
+      const maxSize = 15 * 1024 * 1024; // 15MB
+      if (fileSize > maxSize) {
+        final sizeMB = (fileSize / (1024 * 1024)).toStringAsFixed(2);
+        _lastImageUploadError =
+            'Kich thuoc anh qua lon: ${sizeMB}MB. '
+            'Vui long chon anh nho hon 15MB.';
+        print(_lastImageUploadError);
+        return null;
+      }
+
+      // Upload to Cloudinary and keep the returned public URL.
+      final url = await CloudinaryService.instance.uploadMeterImage(
+        imageFile,
+        customerCode,
+      );
+
+      if (url == null) {
+        _lastImageUploadError = 'Khong the upload anh len Cloudinary';
+        print(_lastImageUploadError);
+        return null;
+      }
+
+      return url;
     } catch (e) {
-      print('Error uploading image: $e');
+      _lastImageUploadError = 'Error uploading image: $e';
+      print(_lastImageUploadError);
+      return null;
+    }
+  }
+
+  Future<String?> uploadMeterImageBytes(
+    Uint8List bytes,
+    String customerCode, {
+    String contentType = 'image/jpeg',
+    String extension = 'jpg',
+  }) async {
+    try {
+      _lastImageUploadError = null;
+
+      // Upload inline image bytes to Cloudinary and keep the returned public URL.
+      final url = await CloudinaryService.instance.uploadMeterImageBytes(
+        bytes,
+        customerCode,
+      );
+
+      if (url == null) {
+        _lastImageUploadError = 'Khong the upload anh bytes len Cloudinary';
+        print(_lastImageUploadError);
+        return null;
+      }
+
+      return url;
+    } catch (e) {
+      _lastImageUploadError = 'Error uploading inline image: $e';
+      print(_lastImageUploadError);
       return null;
     }
   }
 
   Future<bool> deleteImage(String imageUrl) async {
     try {
-      final ref = _storage.refFromURL(imageUrl);
-      await ref.delete();
-      print('Image deleted: $imageUrl');
-      return true;
+      return CloudinaryService.instance.deleteImage(imageUrl);
     } catch (e) {
       print('Error deleting image: $e');
       return false;
@@ -310,62 +349,173 @@ class FirebaseService {
   }
 
   Future<MeterRecord> syncRecord(MeterRecord record) async {
-    final proofImagePath = await _resolveProofImagePath(record);
-    final syncedRecord = record.copyWith(proofImagePath: proofImagePath);
+    final imageResult = await _resolveProofImagePath(record);
+    final syncedRecord = record.copyWith(
+      proofImagePath: imageResult.proofImagePath,
+    );
 
     if (record.recordType == 'payment') {
-      await _upsertPayment(syncedRecord);
-      await _applyPaymentToCustomer(syncedRecord);
+      final upsertResult = await _upsertPayment(syncedRecord);
+      if (upsertResult.shouldApplyToCustomer) {
+        await _applyPaymentToCustomer(syncedRecord);
+        await upsertResult.reference.set({
+          'customerApplied': true,
+        }, SetOptions(merge: true));
+      }
     } else {
-      await _upsertMeterReading(syncedRecord);
-      await _applyMeterReadingToCustomer(syncedRecord);
+      final upsertResult = await _upsertMeterReading(syncedRecord);
+      if (upsertResult.shouldApplyToCustomer) {
+        await _applyMeterReadingToCustomer(syncedRecord);
+        await upsertResult.reference.set({
+          'customerApplied': true,
+        }, SetOptions(merge: true));
+      }
     }
 
     return syncedRecord;
   }
 
-  Future<String?> _resolveProofImagePath(MeterRecord record) async {
-    final rawPath = record.proofImagePath;
-    if (rawPath == null || rawPath.trim().isEmpty) {
+  Future<String?> uploadAndUpdateRecordProofImage(MeterRecord record) async {
+    final imageResult = await _resolveProofImagePath(record);
+    if (imageResult.proofImagePath == null ||
+        !_isRemoteImagePath(imageResult.proofImagePath!)) {
       return null;
     }
 
-    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
-      return rawPath;
+    final collection = record.recordType == 'payment'
+        ? 'payments'
+        : 'meter_readings';
+    await _firestore.collection(collection).doc(_buildRecordId(record)).set({
+      'proofImagePath': imageResult.proofImagePath,
+      'proofImageUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    return imageResult.proofImagePath;
+  }
+
+  Future<_ProofImageSyncResult> _resolveProofImagePath(
+    MeterRecord record,
+  ) async {
+    final rawPath = record.proofImagePath;
+    if (rawPath == null || rawPath.trim().isEmpty) {
+      return const _ProofImageSyncResult();
     }
 
+    // Nếu đã là URL công khai, giữ nguyên
+    if (_isRemoteImagePath(rawPath)) {
+      return _ProofImageSyncResult(proofImagePath: rawPath);
+    }
+
+    // Neu la inline base64, upload len Cloudinary de lay URL cong khai.
+    if (rawPath.toLowerCase().startsWith('data:image/')) {
+      final downloadUrl = await _uploadInlineProofImage(
+        rawPath,
+        record.customerCode,
+      );
+      if (downloadUrl == null || downloadUrl.trim().isEmpty) {
+        // Không throw exception, chỉ log warning và bỏ qua ảnh
+        print(
+          'WARNING: Khong the chuyen anh base64 thanh URL cho ${record.customerCode}',
+        );
+        return _ProofImageSyncResult(proofImagePath: rawPath);
+      }
+      return _ProofImageSyncResult(proofImagePath: downloadUrl);
+    }
+
+    // Neu la local file path, upload len Cloudinary de lay URL cong khai.
     final file = File(rawPath);
     if (!await file.exists()) {
-      return rawPath;
+      print('WARNING: File khong ton tai: $rawPath');
+      return _ProofImageSyncResult(proofImagePath: rawPath);
     }
 
-    return uploadMeterImage(file, record.customerCode);
+    // Upload len Cloudinary.
+    final downloadUrl = await uploadMeterImage(file, record.customerCode);
+    if (downloadUrl == null || downloadUrl.trim().isEmpty) {
+      // Không throw exception, chỉ log warning
+      print(
+        'WARNING: Khong the upload anh len Cloudinary cho ${record.customerCode}. '
+        'Tiep tuc sync cac record khac.',
+      );
+      return _ProofImageSyncResult(proofImagePath: rawPath);
+    }
+    return _ProofImageSyncResult(proofImagePath: downloadUrl);
   }
 
-  Future<void> _upsertMeterReading(MeterRecord record) async {
-    await _firestore
+  Future<String?> _uploadInlineProofImage(
+    String dataUrl,
+    String customerCode,
+  ) async {
+    try {
+      final match = RegExp(
+        r'^data:([^;]+);base64,(.+)$',
+        caseSensitive: false,
+        dotAll: true,
+      ).firstMatch(dataUrl.trim());
+      if (match == null) {
+        return null;
+      }
+
+      final contentType = match.group(1) ?? 'image/jpeg';
+      final encoded = match.group(2)?.replaceAll(RegExp(r'\s'), '') ?? '';
+      final extension = switch (contentType.toLowerCase()) {
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        _ => 'jpg',
+      };
+
+      return uploadMeterImageBytes(
+        base64Decode(encoded),
+        customerCode,
+        contentType: contentType,
+        extension: extension,
+      );
+    } catch (e) {
+      print('Error converting inline image to upload: $e');
+      return null;
+    }
+  }
+
+  Future<_RecordUpsertResult> _upsertMeterReading(MeterRecord record) async {
+    final docRef = _firestore
         .collection('meter_readings')
-        .doc(_buildRecordId(record))
-        .set(_recordPayload(record), SetOptions(merge: true));
+        .doc(_buildRecordId(record));
+    final snapshot = await docRef.get();
+    await docRef.set(_recordPayload(record), SetOptions(merge: true));
+    final customerApplied = snapshot.data()?['customerApplied'] == true;
+    return _RecordUpsertResult(
+      reference: docRef,
+      shouldApplyToCustomer: !customerApplied,
+    );
   }
 
-  Future<void> _upsertPayment(MeterRecord record) async {
-    await _firestore
+  Future<_RecordUpsertResult> _upsertPayment(MeterRecord record) async {
+    final docRef = _firestore
         .collection('payments')
-        .doc(_buildRecordId(record))
-        .set(_recordPayload(record), SetOptions(merge: true));
+        .doc(_buildRecordId(record));
+    final snapshot = await docRef.get();
+    await docRef.set(_recordPayload(record), SetOptions(merge: true));
+    final customerApplied = snapshot.data()?['customerApplied'] == true;
+    return _RecordUpsertResult(
+      reference: docRef,
+      shouldApplyToCustomer: !customerApplied,
+    );
   }
 
   Future<void> _applyMeterReadingToCustomer(MeterRecord record) async {
     final docRef = await _findCustomerDoc(record.customerCode);
     if (docRef == null) {
-      throw Exception('Không tìm thấy khách hàng ${record.customerCode} trên Firebase.');
+      throw Exception(
+        'Không tìm thấy khách hàng ${record.customerCode} trên Firebase.',
+      );
     }
 
     final snapshot = await docRef.get();
     final currentData = snapshot.data() ?? const <String, dynamic>{};
-    final pricePerUnit = _toDouble(currentData['pricePerUnit']) ?? record.pricePerUnit;
-    final oldReading = record.oldReading ?? _toDouble(currentData['lastReading']) ?? 0;
+    final pricePerUnit =
+        _toDouble(currentData['pricePerUnit']) ?? record.pricePerUnit;
+    final oldReading =
+        record.oldReading ?? _toDouble(currentData['lastReading']) ?? 0;
     final newReading = record.newReading ?? oldReading;
     final consumed = math.max(0, newReading - oldReading);
     final billAmount = consumed * pricePerUnit;
@@ -384,7 +534,9 @@ class FirebaseService {
   Future<void> _applyPaymentToCustomer(MeterRecord record) async {
     final docRef = await _findCustomerDoc(record.customerCode);
     if (docRef == null) {
-      throw Exception('Không tìm thấy khách hàng ${record.customerCode} trên Firebase.');
+      throw Exception(
+        'Không tìm thấy khách hàng ${record.customerCode} trên Firebase.',
+      );
     }
 
     final snapshot = await docRef.get();
@@ -438,10 +590,29 @@ class FirebaseService {
       'billingMonth': record.billingMonth,
       'paymentMethod': record.paymentMethod,
       'paymentStatus': record.paymentStatus,
-      'proofImagePath': record.proofImagePath,
+      'proofImagePath': _remoteProofImagePath(record.proofImagePath),
       'recordedAt': Timestamp.fromDate(record.recordedAt),
       'uploadedAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  String? _remoteProofImagePath(String? proofImagePath) {
+    final value = proofImagePath?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+
+    if (_isRemoteImagePath(value)) {
+      return value;
+    }
+
+    return null;
+  }
+
+  bool _isRemoteImagePath(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized.startsWith('http://') ||
+        normalized.startsWith('https://');
   }
 
   Map<String, Object?> _mapRecordDocument(Map<String, dynamic> data) {
@@ -452,8 +623,8 @@ class FirebaseService {
       'newReading': _toDouble(data['newReading']),
       'amountCollected': _toDouble(data['amountCollected']),
       'syncStatus': 'synced',
-      'recordedAt':
-          (_parseDateTime(data['recordedAt']) ?? DateTime.now()).toIso8601String(),
+      'recordedAt': (_parseDateTime(data['recordedAt']) ?? DateTime.now())
+          .toIso8601String(),
       'collectorName': _nullableStringValue(data['collectorName']),
       'note': _nullableStringValue(data['note']),
       'billingMonth': _nullableStringValue(data['billingMonth']),
@@ -467,13 +638,17 @@ class FirebaseService {
   }
 
   int _compareRecordMaps(Map<String, Object?> a, Map<String, Object?> b) {
-    final aDate = DateTime.tryParse(_stringValue(a['recordedAt'])) ?? DateTime.now();
-    final bDate = DateTime.tryParse(_stringValue(b['recordedAt'])) ?? DateTime.now();
+    final aDate =
+        DateTime.tryParse(_stringValue(a['recordedAt'])) ?? DateTime.now();
+    final bDate =
+        DateTime.tryParse(_stringValue(b['recordedAt'])) ?? DateTime.now();
     final byDate = bDate.compareTo(aDate);
     if (byDate != 0) {
       return byDate;
     }
-    return _stringValue(a['customerCode']).compareTo(_stringValue(b['customerCode']));
+    return _stringValue(
+      a['customerCode'],
+    ).compareTo(_stringValue(b['customerCode']));
   }
 
   Map<String, Object?> _mapCustomerDocument(Map<String, dynamic> data) {
@@ -490,13 +665,15 @@ class FirebaseService {
       'areaCode': _stringValue(data['areaCode'], fallback: 'ALL'),
       'areaName': _stringValue(data['areaName'], fallback: 'Tat ca khu vuc'),
       'lastReading': _toDouble(data['lastReading']),
-      'lastReadingDate':
-          _parseDateTime(data['lastReadingDate'])?.toIso8601String(),
+      'lastReadingDate': _parseDateTime(
+        data['lastReadingDate'],
+      )?.toIso8601String(),
       'pricePerUnit': _toDouble(data['pricePerUnit']) ?? 15000,
       'totalDebt': _toDouble(data['totalDebt']) ?? 0,
       'debtMonths': _toInt(data['debtMonths']) ?? 0,
-      'lastPaymentDate':
-          _parseDateTime(data['lastPaymentDate'])?.toIso8601String(),
+      'lastPaymentDate': _parseDateTime(
+        data['lastPaymentDate'],
+      )?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': _parseDateTime(data['updatedAt'])?.toIso8601String(),
     };
@@ -551,4 +728,20 @@ class FirebaseService {
     }
     return int.tryParse(value.toString());
   }
+}
+
+class _ProofImageSyncResult {
+  const _ProofImageSyncResult({this.proofImagePath});
+
+  final String? proofImagePath;
+}
+
+class _RecordUpsertResult {
+  const _RecordUpsertResult({
+    required this.reference,
+    required this.shouldApplyToCustomer,
+  });
+
+  final DocumentReference<Map<String, dynamic>> reference;
+  final bool shouldApplyToCustomer;
 }

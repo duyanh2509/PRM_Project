@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/customer_list_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/local_image_service.dart';
 
 class PaymentCollectionScreen extends StatefulWidget {
   const PaymentCollectionScreen({super.key, required this.customer});
@@ -18,7 +19,8 @@ class PaymentCollectionScreen extends StatefulWidget {
   final Customer customer;
 
   @override
-  State<PaymentCollectionScreen> createState() => _PaymentCollectionScreenState();
+  State<PaymentCollectionScreen> createState() =>
+      _PaymentCollectionScreenState();
 }
 
 class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
@@ -48,10 +50,13 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
   @override
   Widget build(BuildContext context) {
     final historyProvider = context.watch<HistoryProvider>();
-    final meterRecords = historyProvider.meterRecords
-        .where((record) => record.customerCode == widget.customer.customerCode)
-        .toList()
-      ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    final meterRecords =
+        historyProvider.meterRecords
+            .where(
+              (record) => record.customerCode == widget.customer.customerCode,
+            )
+            .toList()
+          ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     final dueAmount = widget.customer.totalDebt;
     final collectedAmount = _parseCurrency(_amountController.text);
     final remainingAmount = (dueAmount - collectedAmount).clamp(
@@ -67,13 +72,12 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
       0.0,
       double.infinity,
     );
-    final latestReading =
-        meterRecords.isNotEmpty
-            ? (meterRecords.first.newReading ??
-                meterRecords.first.oldReading ??
-                widget.customer.lastReading ??
-                0)
-            : (widget.customer.lastReading ?? 0);
+    final latestReading = meterRecords.isNotEmpty
+        ? (meterRecords.first.newReading ??
+              meterRecords.first.oldReading ??
+              widget.customer.lastReading ??
+              0)
+        : (widget.customer.lastReading ?? 0);
     final currentPeriod = _buildCurrentPeriod(
       meterRecords.isNotEmpty
           ? meterRecords.first.recordedAt
@@ -115,7 +119,7 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => _savePayment(context),
+                  onPressed: _savePayment,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF3B82F6),
                     foregroundColor: Colors.white,
@@ -127,20 +131,14 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
                   icon: const Icon(Icons.save_outlined),
                   label: const Text(
                     'Lưu thanh toán (Offline)',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Dấu thời gian: ${DateFormat('HH:mm:ss d/M/yyyy').format(DateTime.now())}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
               ),
             ],
           ),
@@ -205,7 +203,7 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
     );
   }
 
-  Future<void> _savePayment(BuildContext context) async {
+  Future<void> _savePayment() async {
     final amountCollected = _parseCurrency(_amountController.text);
     if (amountCollected <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,10 +221,17 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
     }
 
     final historyProvider = context.read<HistoryProvider>();
-    final meterRecords = historyProvider.meterRecords
-        .where((record) => record.customerCode == widget.customer.customerCode)
-        .toList()
-      ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    final customerListProvider = context.read<CustomerListProvider>();
+    final settingsProvider = context.read<SettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final meterRecords =
+        historyProvider.meterRecords
+            .where(
+              (record) => record.customerCode == widget.customer.customerCode,
+            )
+            .toList()
+          ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     final latestMeter = meterRecords.isNotEmpty ? meterRecords.first : null;
 
     await historyProvider.addPaymentRecord(
@@ -261,25 +266,21 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
         syncedAt: null,
       ),
     );
-    await context.read<CustomerListProvider>().loadCustomersForUser(
-      user,
-      forceRefresh: true,
-    );
-    final settingsProvider = context.read<SettingsProvider>();
+    await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
     await settingsProvider.loadForUser(user, forceRefresh: true);
 
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           'Đã lưu thông tin thu tiền cho khách hàng ${widget.customer.customerCode}',
         ),
       ),
     );
-    Navigator.of(context).pop(true);
+    navigator.pop(true);
   }
 
   Future<void> _selectProofImage() async {
@@ -332,16 +333,24 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
 
     final pickedFile = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 85,
-      maxWidth: 1600,
+      imageQuality: 65,
+      maxWidth: 1024,
     );
 
     if (pickedFile == null || !mounted) {
       return;
     }
 
+    final proofImage = await LocalImageService.instance.saveProofImage(
+      File(pickedFile.path),
+      widget.customer.customerCode,
+    );
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _proofImage = File(pickedFile.path);
+      _proofImage = proofImage;
       _isVerified = true;
     });
   }
@@ -467,7 +476,10 @@ class _CustomerSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: const Color(0xFFDCE3EF)),
                   borderRadius: BorderRadius.circular(999),
@@ -729,7 +741,11 @@ class _PaymentDataCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF3B82F6)),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: Color(0xFF3B82F6),
+              ),
               SizedBox(width: 8),
               Text(
                 'SỐ LIỆU HIỆN TẠI',
@@ -881,10 +897,7 @@ class _DataMetric extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 6),
           Text(
@@ -919,10 +932,7 @@ class _BreakdownLine extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
         ),
         Text(
@@ -1150,7 +1160,11 @@ class _OfflineInfoCard extends StatelessWidget {
           CircleAvatar(
             radius: 12,
             backgroundColor: Color(0xFF3B82F6),
-            child: Icon(Icons.offline_bolt_rounded, size: 14, color: Colors.white),
+            child: Icon(
+              Icons.offline_bolt_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
           ),
           SizedBox(width: 12),
           Expanded(
@@ -1207,6 +1221,7 @@ double _resolveCurrentMonthAmount({
 
   final latestMeter = meterRecords.first;
   final consumedUnits = latestMeter.consumedUnits ?? 0;
-  final currentMonthAmount = (consumedUnits.clamp(0.0, double.infinity)) * pricePerUnit;
+  final currentMonthAmount =
+      (consumedUnits.clamp(0.0, double.infinity)) * pricePerUnit;
   return currentMonthAmount.clamp(0.0, totalDebt);
 }

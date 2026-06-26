@@ -29,17 +29,45 @@ class ApiService {
     _ensureOnline();
     final pendingRecords = await _dbHelper.getPendingRecordsForUser(user);
     var syncedCount = 0;
+    final errors = <String>[];
 
     for (final record in pendingRecords) {
-      final syncedRecord = await _firebaseService.syncRecord(record);
-      await _dbHelper.markRecordSynced(
-        syncedRecord,
-        syncedAt: DateTime.now(),
-      );
-      syncedCount++;
+      try {
+        final syncedRecord = await _firebaseService.syncRecord(record);
+        await _dbHelper.markRecordSynced(
+          syncedRecord,
+          syncedAt: DateTime.now(),
+        );
+        syncedCount++;
+      } catch (e) {
+        errors.add('${record.customerCode}: $e');
+      }
     }
 
-    return syncedCount;
+    if (syncedCount == 0 && errors.isNotEmpty) {
+      throw ApiException('Dong bo that bai: ${errors.join('; ')}');
+    }
+
+    final upgradedImages = await _syncLocalProofImages(user);
+    return syncedCount + upgradedImages;
+  }
+
+  Future<int> _syncLocalProofImages(User user) async {
+    final records = await _dbHelper.getRecordsWithLocalProofImagesForUser(user);
+    var uploadedCount = 0;
+
+    for (final record in records) {
+      final proofImagePath = await _firebaseService
+          .uploadAndUpdateRecordProofImage(record);
+      if (proofImagePath == null) {
+        continue;
+      }
+
+      await _dbHelper.updateRecordProofImagePath(record, proofImagePath);
+      uploadedCount++;
+    }
+
+    return uploadedCount;
   }
 
   void _ensureOnline() {

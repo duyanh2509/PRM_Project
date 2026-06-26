@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/customer_list_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/local_image_service.dart';
 
 class MeterReadingScreen extends StatefulWidget {
   const MeterReadingScreen({super.key, required this.customer});
@@ -45,7 +46,8 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
   @override
   Widget build(BuildContext context) {
     final oldReading = widget.customer.lastReading ?? 0;
-    final newReading = double.tryParse(_readingController.text.trim()) ?? oldReading;
+    final newReading =
+        double.tryParse(_readingController.text.trim()) ?? oldReading;
     final consumedUnits = (newReading - oldReading).clamp(0.0, double.infinity);
     final estimatedBill = consumedUnits * widget.customer.pricePerUnit;
     final formatter = NumberFormat.currency(
@@ -122,7 +124,8 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                     Expanded(
                       child: _MetricChip(
                         label: 'Đơn giá',
-                        value: '${formatter.format(widget.customer.pricePerUnit)} đ',
+                        value:
+                            '${formatter.format(widget.customer.pricePerUnit)} đ',
                       ),
                     ),
                   ],
@@ -231,6 +234,12 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       return;
     }
 
+    final historyProvider = context.read<HistoryProvider>();
+    final customerListProvider = context.read<CustomerListProvider>();
+    final settingsProvider = context.read<SettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     final recordedAt = DateTime.now();
     final record = MeterRecord(
       id: null,
@@ -255,26 +264,22 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       syncedAt: null,
     );
 
-    await context.read<HistoryProvider>().addMeterRecord(user: user, record: record);
-    await context.read<CustomerListProvider>().loadCustomersForUser(
-      user,
-      forceRefresh: true,
-    );
-    final settingsProvider = context.read<SettingsProvider>();
+    await historyProvider.addMeterRecord(user: user, record: record);
+    await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
     await settingsProvider.loadForUser(user, forceRefresh: true);
 
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           'Đã lưu chỉ số mới cho khách hàng ${widget.customer.customerCode}',
         ),
       ),
     );
-    Navigator.of(context).pop(true);
+    navigator.pop(true);
   }
 
   Future<void> _pickImage() async {
@@ -307,21 +312,31 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
 
     final picked = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 85,
-      maxWidth: 1600,
+      imageQuality: 65,
+      maxWidth: 1024,
     );
 
     if (picked == null || !mounted) {
       return;
     }
 
+    final proofImage = await LocalImageService.instance.saveProofImage(
+      File(picked.path),
+      widget.customer.customerCode,
+    );
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _proofImage = File(picked.path);
+      _proofImage = proofImage;
     });
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _billingMonth(DateTime dateTime) {
@@ -374,7 +389,10 @@ class _SummaryCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${customer.customerCode} • ${customer.address}',
-                  style: const TextStyle(color: Color(0xFF6B7280), height: 1.35),
+                  style: const TextStyle(
+                    color: Color(0xFF6B7280),
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),

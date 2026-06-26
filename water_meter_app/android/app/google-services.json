@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "123456789012",
+    "project_number": "822607610181",
     "project_id": "prmwatermeterapp",
     "storage_bucket": "prmwatermeterapp.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
+        "mobilesdk_app_id": "1:822607610181:android:f0de7e1d6dd8a827977e2c",
         "android_client_info": {
           "package_name": "com.example.water_meter_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBGVp7Zw3KOXqJxN9YQF8cR6D4LMpT2E1s"
+          "current_key": "AIzaSyBVivuk_qBN5uoDd8_tb22_jmWmtk4knDk"
         }
       ],
       "services": {

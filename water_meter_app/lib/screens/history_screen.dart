@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -49,7 +54,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         bottom: false,
         child: Consumer<HistoryProvider>(
           builder: (context, historyProvider, child) {
-            final now = DateTime.now();
             final baseRecords = _segmentIndex == 0
                 ? historyProvider.meterRecords
                 : historyProvider.paymentRecords;
@@ -505,7 +509,8 @@ class _PaymentPanel extends StatelessWidget {
               Expanded(
                 child: _PanelValue(
                   label: 'TIÊU THỤ',
-                  value: '${record.consumedUnits?.toStringAsFixed(0) ?? '--'} m³',
+                  value:
+                      '${record.consumedUnits?.toStringAsFixed(0) ?? '--'} m³',
                   accent: const Color(0xFF111827),
                 ),
               ),
@@ -707,10 +712,7 @@ class _HistoryFooter extends StatelessWidget {
 }
 
 class _HistoryRecordDetailScreen extends StatelessWidget {
-  const _HistoryRecordDetailScreen({
-    required this.record,
-    required this.mode,
-  });
+  const _HistoryRecordDetailScreen({required this.record, required this.mode});
 
   final MeterRecord record;
   final _HistoryCardMode mode;
@@ -783,7 +785,9 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
                       ),
                       _InlineBadge(
                         label: detail.statusLabel,
-                        backgroundColor: detail.statusColor.withValues(alpha: 0.12),
+                        backgroundColor: detail.statusColor.withValues(
+                          alpha: 0.12,
+                        ),
                         foregroundColor: detail.statusColor,
                       ),
                     ],
@@ -821,20 +825,34 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   const Divider(height: 1, color: Color(0xFFE5E7EB)),
                   const SizedBox(height: 18),
-                  _InvoiceInfoRow(label: 'Khách hàng', value: record.customerName),
-                  _InvoiceInfoRow(label: 'Mã khách hàng', value: record.customerCode),
+                  _InvoiceInfoRow(
+                    label: 'Khách hàng',
+                    value: record.customerName,
+                  ),
+                  _InvoiceInfoRow(
+                    label: 'Mã khách hàng',
+                    value: record.customerCode,
+                  ),
                   _InvoiceInfoRow(label: 'Địa chỉ', value: record.address),
                   _InvoiceInfoRow(
                     label: 'Thời gian',
-                    value: DateFormat('HH:mm:ss - dd/MM/yyyy').format(record.recordedAt),
+                    value: DateFormat(
+                      'HH:mm:ss - dd/MM/yyyy',
+                    ).format(record.recordedAt),
                   ),
                   _InvoiceInfoRow(
                     label: 'Nhân viên',
                     value: record.collectorName ?? 'Chưa cập nhật',
                   ),
                   if (mode == _HistoryCardMode.payment) ...[
-                    _InvoiceInfoRow(label: 'Phương thức', value: paymentMeta.method),
-                    _InvoiceInfoRow(label: 'Tình trạng', value: paymentMeta.status),
+                    _InvoiceInfoRow(
+                      label: 'Phương thức',
+                      value: paymentMeta.method,
+                    ),
+                    _InvoiceInfoRow(
+                      label: 'Tình trạng',
+                      value: paymentMeta.status,
+                    ),
                   ],
                   _InvoiceInfoRow(
                     label: 'Đồng bộ',
@@ -844,6 +862,10 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            if ((record.proofImagePath ?? '').trim().isNotEmpty) ...[
+              _ProofImageCard(imagePath: record.proofImagePath!.trim()),
+              const SizedBox(height: 16),
+            ],
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -868,14 +890,16 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
                       Expanded(
                         child: _InvoiceMetric(
                           label: 'Chỉ số cũ',
-                          value: '${record.oldReading?.toStringAsFixed(0) ?? '--'} m³',
+                          value:
+                              '${record.oldReading?.toStringAsFixed(0) ?? '--'} m³',
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _InvoiceMetric(
                           label: 'Chỉ số mới',
-                          value: '${record.newReading?.toStringAsFixed(0) ?? '--'} m³',
+                          value:
+                              '${record.newReading?.toStringAsFixed(0) ?? '--'} m³',
                         ),
                       ),
                     ],
@@ -883,7 +907,8 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   _InvoiceMetric(
                     label: 'Tiêu thụ',
-                    value: '${record.consumedUnits?.toStringAsFixed(0) ?? '--'} m³',
+                    value:
+                        '${record.consumedUnits?.toStringAsFixed(0) ?? '--'} m³',
                   ),
                 ],
               ),
@@ -900,7 +925,9 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    mode == _HistoryCardMode.payment ? 'Ghi chú thanh toán' : 'Ghi chú bản ghi',
+                    mode == _HistoryCardMode.payment
+                        ? 'Ghi chú thanh toán'
+                        : 'Ghi chú bản ghi',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -926,11 +953,83 @@ class _HistoryRecordDetailScreen extends StatelessWidget {
   }
 }
 
+class _ProofImageCard extends StatelessWidget {
+  const _ProofImageCard({required this.imagePath});
+
+  final String imagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageFile = _isRemoteImagePath(imagePath) ? null : File(imagePath);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8EDF4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ảnh minh chứng',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF20242D),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: _isInlineImagePath(imagePath)
+                  ? Image.memory(
+                      _decodeInlineImage(imagePath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const _ProofImagePlaceholder(),
+                    )
+                  : _isRemoteImagePath(imagePath)
+                  ? CachedNetworkImage(
+                      imageUrl: imagePath,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      errorWidget: (_, _, _) => const _ProofImagePlaceholder(),
+                    )
+                  : imageFile != null && imageFile.existsSync()
+                  ? Image.file(imageFile, fit: BoxFit.cover)
+                  : const _ProofImagePlaceholder(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProofImagePlaceholder extends StatelessWidget {
+  const _ProofImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF6F7FB),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.image_outlined,
+        size: 72,
+        color: Color(0xFFB8BAD2),
+      ),
+    );
+  }
+}
+
 class _InvoiceInfoRow extends StatelessWidget {
-  const _InvoiceInfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InvoiceInfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -971,10 +1070,7 @@ class _InvoiceInfoRow extends StatelessWidget {
 }
 
 class _InvoiceMetric extends StatelessWidget {
-  const _InvoiceMetric({
-    required this.label,
-    required this.value,
-  });
+  const _InvoiceMetric({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -1088,6 +1184,23 @@ String _buildHistoryCode({
   return '$prefix-$datePart-${record.customerCode}-$idPart';
 }
 
+bool _isRemoteImagePath(String path) {
+  final normalized = path.trim().toLowerCase();
+  return normalized.startsWith('http://') || normalized.startsWith('https://');
+}
+
+bool _isInlineImagePath(String path) {
+  return path.trim().toLowerCase().startsWith('data:image/');
+}
+
+Uint8List _decodeInlineImage(String path) {
+  final commaIndex = path.indexOf(',');
+  if (commaIndex < 0) {
+    return Uint8List(0);
+  }
+  return base64Decode(path.substring(commaIndex + 1));
+}
+
 Color _statusColor(String status) {
   final normalized = status.toLowerCase();
   if (normalized.contains('đã thu') || normalized.contains('da thu')) {
@@ -1126,11 +1239,7 @@ _PaymentNoteInfo _parsePaymentNote(String? note) {
       ? parts.sublist(2).join(' | ')
       : 'Không có ghi chú thêm.';
 
-  return _PaymentNoteInfo(
-    status: status,
-    method: method,
-    note: customNote,
-  );
+  return _PaymentNoteInfo(status: status, method: method, note: customNote);
 }
 
 class _PaymentNoteInfo {

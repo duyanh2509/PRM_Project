@@ -55,22 +55,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
+    final settingsProvider = context.read<SettingsProvider>();
+    final customerListProvider = context.read<CustomerListProvider>();
+    final historyProvider = context.read<HistoryProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
-      await context.read<SettingsProvider>().downloadLatestRoute(user);
-      await context.read<CustomerListProvider>().loadCustomersForUser(
-        user,
-        forceRefresh: true,
-      );
-      await context.read<HistoryProvider>().loadForUser(user, forceRefresh: true);
+      await settingsProvider.downloadLatestRoute(user);
+      await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
+      await historyProvider.loadForUser(user, forceRefresh: true);
       if (!mounted) {
         return;
       }
-      _showMessage(context, context.read<SettingsProvider>().statusMessage ?? 'Đã tải dữ liệu.');
+      _showMessage(
+        messenger,
+        settingsProvider.statusMessage ?? 'Đã tải dữ liệu.',
+      );
     } catch (e) {
       if (!mounted) {
         return;
       }
-      _showMessage(context, e.toString());
+      _showMessage(messenger, e.toString());
     }
   }
 
@@ -80,22 +85,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
+    final settingsProvider = context.read<SettingsProvider>();
+    final customerListProvider = context.read<CustomerListProvider>();
+    final historyProvider = context.read<HistoryProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
-      await context.read<SettingsProvider>().syncNow(user);
-      await context.read<CustomerListProvider>().loadCustomersForUser(
-        user,
-        forceRefresh: true,
-      );
-      await context.read<HistoryProvider>().loadForUser(user, forceRefresh: true);
+      await settingsProvider.syncNow(user);
+      await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
+      await historyProvider.loadForUser(user, forceRefresh: true);
       if (!mounted) {
         return;
       }
-      _showMessage(context, context.read<SettingsProvider>().statusMessage ?? 'Đã đồng bộ dữ liệu.');
+      _showMessage(
+        messenger,
+        settingsProvider.statusMessage ?? 'Đã đồng bộ dữ liệu.',
+      );
     } catch (e) {
       if (!mounted) {
         return;
       }
-      _showMessage(context, e.toString());
+      _showMessage(messenger, e.toString());
     }
   }
 
@@ -104,20 +114,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (user == null) {
       return;
     }
-    await context.read<SettingsProvider>().clearCache();
-    await context.read<CustomerListProvider>().loadCustomersForUser(
-      user,
-      forceRefresh: true,
-    );
-    await context.read<HistoryProvider>().loadForUser(user, forceRefresh: true);
+    final settingsProvider = context.read<SettingsProvider>();
+    final customerListProvider = context.read<CustomerListProvider>();
+    final historyProvider = context.read<HistoryProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await settingsProvider.clearCache();
+    await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
+    await historyProvider.loadForUser(user, forceRefresh: true);
     if (!mounted) {
       return;
     }
-    _showMessage(context, context.read<SettingsProvider>().statusMessage ?? 'Đã xóa cache.');
+    _showMessage(messenger, settingsProvider.statusMessage ?? 'Đã xóa cache.');
   }
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(ScaffoldMessengerState messenger, String message) {
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -137,7 +149,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'NV-${(user.id ?? 0).toString().padLeft(4, '0')}-${user.areaCode}';
             final lastSyncText = settingsProvider.lastSyncAt == null
                 ? 'Chưa có'
-                : DateFormat('HH:mm dd/MM/yyyy').format(settingsProvider.lastSyncAt!);
+                : DateFormat(
+                    'HH:mm dd/MM/yyyy',
+                  ).format(settingsProvider.lastSyncAt!);
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -173,7 +187,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 18),
                 _StatusCard(
-                  downloadedCustomerCount: settingsProvider.downloadedCustomerCount,
+                  downloadedCustomerCount:
+                      settingsProvider.downloadedCustomerCount,
                   pendingSyncCount: settingsProvider.pendingSyncCount,
                   cacheSizeMb: settingsProvider.cacheSizeMb,
                   lastSyncText: lastSyncText,
@@ -328,10 +343,7 @@ class _StatusCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _MetricTile(
-                  label: 'Lan sync cuoi',
-                  value: lastSyncText,
-                ),
+                child: _MetricTile(label: 'Lan sync cuoi', value: lastSyncText),
               ),
             ],
           ),
@@ -392,10 +404,15 @@ class _ActionPanel extends StatelessWidget {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.cloud_download_outlined),
-              label: Text(isDownloading ? 'Đang tải dữ liệu...' : 'Tải dữ liệu tuyến'),
+              label: Text(
+                isDownloading ? 'Đang tải dữ liệu...' : 'Tải dữ liệu tuyến',
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -410,7 +427,9 @@ class _ActionPanel extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.sync_rounded),
-              label: Text(isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ lên máy chủ'),
+              label: Text(
+                isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ lên máy chủ',
+              ),
             ),
           ),
         ],
@@ -420,10 +439,7 @@ class _ActionPanel extends StatelessWidget {
 }
 
 class _OptionsPanel extends StatelessWidget {
-  const _OptionsPanel({
-    required this.cacheSizeMb,
-    required this.onClearCache,
-  });
+  const _OptionsPanel({required this.cacheSizeMb, required this.onClearCache});
 
   final int cacheSizeMb;
   final VoidCallback onClearCache;
@@ -492,7 +508,10 @@ class _MetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
           const SizedBox(height: 6),
           Text(
             value,

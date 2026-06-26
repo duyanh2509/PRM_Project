@@ -237,7 +237,9 @@ class DatabaseHelper {
       args.add(recordType);
     }
 
-    final whereClause = whereParts.isEmpty ? '' : 'WHERE ${whereParts.join(' AND ')}';
+    final whereClause = whereParts.isEmpty
+        ? ''
+        : 'WHERE ${whereParts.join(' AND ')}';
 
     return db.rawQuery('''
       SELECT
@@ -334,7 +336,10 @@ class DatabaseHelper {
 
     return db.transaction((txn) async {
       final serverCustomers = user.role == 'admin'
-          ? await txn.query('server_customers', orderBy: 'areaCode ASC, customerCode ASC')
+          ? await txn.query(
+              'server_customers',
+              orderBy: 'areaCode ASC, customerCode ASC',
+            )
           : await txn.query(
               'server_customers',
               where: 'areaCode = ?',
@@ -360,12 +365,10 @@ class DatabaseHelper {
       }
 
       if (user.role == 'admin') {
-        await txn.rawDelete(
-          '''
+        await txn.rawDelete('''
           DELETE FROM meter_records
           WHERE syncStatus = 'synced'
-          ''',
-        );
+          ''');
       } else {
         await txn.rawDelete(
           '''
@@ -380,7 +383,10 @@ class DatabaseHelper {
       }
 
       final serverRecords = user.role == 'admin'
-          ? await txn.query('server_records', orderBy: 'recordedAt DESC, id DESC')
+          ? await txn.query(
+              'server_records',
+              orderBy: 'recordedAt DESC, id DESC',
+            )
           : await txn.rawQuery(
               '''
               SELECT r.*
@@ -513,10 +519,7 @@ class DatabaseHelper {
 
         await txn.update(
           'meter_records',
-          {
-            'syncStatus': 'synced',
-            'syncedAt': nowIso,
-          },
+          {'syncStatus': 'synced', 'syncedAt': nowIso},
           where: 'id = ?',
           whereArgs: [record.id],
         );
@@ -530,8 +533,7 @@ class DatabaseHelper {
   Future<List<MeterRecord>> getPendingRecordsForUser(User user) async {
     final db = await database;
     final rows = user.role == 'admin'
-        ? await db.rawQuery(
-            '''
+        ? await db.rawQuery('''
             SELECT
               r.id,
               r.customerCode,
@@ -557,8 +559,7 @@ class DatabaseHelper {
             INNER JOIN customers c ON c.customerCode = r.customerCode
             WHERE r.syncStatus = 'pending'
             ORDER BY r.recordedAt ASC, r.id ASC
-            ''',
-          )
+            ''')
         : await db.rawQuery(
             '''
             SELECT
@@ -591,6 +592,65 @@ class DatabaseHelper {
           );
 
     return rows.map(MeterRecord.fromMap).toList();
+  }
+
+  Future<List<MeterRecord>> getRecordsWithLocalProofImagesForUser(
+    User user,
+  ) async {
+    final records = <MeterRecord>[];
+    final meterRows = await getRecordsForUser(user, recordType: 'meter');
+    final paymentRows = await getRecordsForUser(user, recordType: 'payment');
+
+    for (final row in [...meterRows, ...paymentRows]) {
+      final record = MeterRecord.fromMap(row);
+      final proofImagePath = record.proofImagePath?.trim() ?? '';
+      if (proofImagePath.isEmpty ||
+          proofImagePath.startsWith('http://') ||
+          proofImagePath.startsWith('https://')) {
+        continue;
+      }
+      records.add(record);
+    }
+
+    return records;
+  }
+
+  Future<void> updateRecordProofImagePath(
+    MeterRecord record,
+    String? proofImagePath,
+  ) async {
+    if (record.id == null) {
+      return;
+    }
+
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        'meter_records',
+        {'proofImagePath': proofImagePath},
+        where: 'id = ?',
+        whereArgs: [record.id],
+      );
+
+      await txn.update(
+        'server_records',
+        {'proofImagePath': proofImagePath},
+        where: '''
+          customerCode = ?
+          AND recordType = ?
+          AND recordedAt = ?
+          AND IFNULL(amountCollected, -1) = IFNULL(?, -1)
+          AND IFNULL(newReading, -1) = IFNULL(?, -1)
+        ''',
+        whereArgs: [
+          record.customerCode,
+          record.recordType,
+          record.recordedAt.toIso8601String(),
+          record.amountCollected,
+          record.newReading,
+        ],
+      );
+    });
   }
 
   Future<void> markRecordSynced(
@@ -667,11 +727,13 @@ class DatabaseHelper {
 
   Future<int> estimateCacheSizeMb() async {
     final db = await database;
-    final customerCount = Sqflite.firstIntValue(
+    final customerCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM customers'),
         ) ??
         0;
-    final recordCount = Sqflite.firstIntValue(
+    final recordCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM meter_records'),
         ) ??
         0;
@@ -682,7 +744,11 @@ class DatabaseHelper {
     final db = await database;
     await db.transaction((txn) async {
       if (user.role == 'admin') {
-        await txn.delete('meter_records', where: 'syncStatus = ?', whereArgs: ['synced']);
+        await txn.delete(
+          'meter_records',
+          where: 'syncStatus = ?',
+          whereArgs: ['synced'],
+        );
       } else {
         await txn.rawDelete(
           '''
@@ -745,7 +811,10 @@ class DatabaseHelper {
       return;
     }
 
-    final remaining = math.max(0, customer.totalDebt - (record.amountCollected ?? 0));
+    final remaining = math.max(
+      0,
+      customer.totalDebt - (record.amountCollected ?? 0),
+    );
     await txn.update(
       'customers',
       {
@@ -764,7 +833,11 @@ class DatabaseHelper {
     Transaction txn,
     MeterRecord record,
   ) async {
-    final customer = await _getCustomer(txn, 'server_customers', record.customerCode);
+    final customer = await _getCustomer(
+      txn,
+      'server_customers',
+      record.customerCode,
+    );
     if (customer == null) {
       return;
     }
@@ -793,12 +866,19 @@ class DatabaseHelper {
     Transaction txn,
     MeterRecord record,
   ) async {
-    final customer = await _getCustomer(txn, 'server_customers', record.customerCode);
+    final customer = await _getCustomer(
+      txn,
+      'server_customers',
+      record.customerCode,
+    );
     if (customer == null) {
       return;
     }
 
-    final remaining = math.max(0, customer.totalDebt - (record.amountCollected ?? 0));
+    final remaining = math.max(
+      0,
+      customer.totalDebt - (record.amountCollected ?? 0),
+    );
     await txn.update(
       'server_customers',
       {

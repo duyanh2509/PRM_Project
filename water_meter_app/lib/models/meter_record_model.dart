@@ -119,6 +119,7 @@ class MeterRecord {
     String? paymentMethod,
     String? paymentStatus,
     String? proofImagePath,
+    bool clearProofImagePath = false,
     DateTime? syncedAt,
   }) {
     return MeterRecord(
@@ -140,7 +141,9 @@ class MeterRecord {
       billingMonth: billingMonth ?? this.billingMonth,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
-      proofImagePath: proofImagePath ?? this.proofImagePath,
+      proofImagePath: clearProofImagePath
+          ? null
+          : proofImagePath ?? this.proofImagePath,
       syncedAt: syncedAt ?? this.syncedAt,
     );
   }

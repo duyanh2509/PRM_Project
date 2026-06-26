@@ -53,9 +53,9 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBGVp7Zw3KOXqJxN9YQF8cR6D4LMpT2E1s',
-    appId: '1:123456789012:android:abcdef1234567890',
-    messagingSenderId: '123456789012',
+    apiKey: 'AIzaSyBVivuk_qBN5uoDd8_tb22_jmWmtk4knDk',
+    appId: '1:822607610181:android:f0de7e1d6dd8a827977e2c',
+    messagingSenderId: '822607610181',
     projectId: 'prmwatermeterapp',
     storageBucket: 'prmwatermeterapp.firebasestorage.app',
   );
