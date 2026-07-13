@@ -2,6 +2,19 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+/// ============================================================================
+/// CONNECTIVITY SERVICE - Quản lý trạng thái kết nối mạng
+/// ============================================================================
+/// STATE: _manualOnline (user bật/tắt thủ công), _networkAvailable (mạng thực sự có hay không)
+/// GETTER: isOnline (chỉ true khi CẢ 2 đều true)
+///
+/// METHODS:
+/// - initialize(): Khởi tạo và lắng nghe thay đổi connectivity
+/// - setManualOnline(bool): Set chế độ online/offline thủ công
+/// - toggleManualOnline(): Đảo ngược trạng thái manual
+/// - statusStream: Stream phát sự kiện online/offline cho listeners
+/// ============================================================================
+
 class ConnectivityService {
   ConnectivityService._internal();
 

@@ -7,6 +7,80 @@ import '../models/customer_model.dart';
 import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
 
+/// ============================================================================
+/// DATABASE HELPER - Quản lý SQLite local database
+/// ============================================================================
+///
+/// MỤC ĐÍCH:
+/// - Quản lý SQLite database local cho offline mode
+/// - Tự động cập nhật công nợ khách hàng khi ghi số / thu tiền
+/// - Lưu trữ user, customers, meter records, payment records
+///
+/// TABLES:
+/// 1. users: Thông tin nhân viên đăng nhập
+///    - id, username, password_hash, full_name, area_code, area_name
+///
+/// 2. customers: Thông tin khách hàng (hộ gia đình)
+///    - id, customer_code, customer_name, address, phone_number
+///    - area_code, area_name, last_reading, last_reading_date
+///    - total_debt, debt_months, price_per_unit, last_payment_date, is_active
+///
+/// 3. reading_meter: Bản ghi ghi số + thu tiền (dùng chung)
+///    - id, customer_code, customer_name, address, area_code, area_name
+///    - record_type ('meter' hoặc 'payment')
+///    - old_reading, new_reading, amount_collected
+///    - sync_status ('pending' hoặc 'synced')
+///    - recorded_at, collector_name, note, proof_image_path
+///    - price_per_unit, billing_month, payment_method, payment_status, synced_at
+///
+/// HÀM QUAN TRỌNG:
+///
+/// USER:
+/// - login(username, password): Đăng nhập local
+/// - upsertUser(user): Lưu/cập nhật user
+///
+/// CUSTOMER:
+/// - getCustomersForUser(user): Lấy danh sách khách hàng theo khu vực
+/// - upsertCustomer(customer): Lưu/cập nhật customer
+/// - getDownloadedCustomerCountForUser(user): Đếm số khách hàng đã tải
+///
+/// METER RECORD (GHI CHỈ SỐ):
+/// - insertMeterRecord(record): Lưu bản ghi ghi số
+///   → Tự động gọi _applyMeterEffectToLocalCustomer()
+///   → UPDATE customers SET total_debt = total_debt + (tiền nước mới phát sinh)
+///   → UPDATE customers SET last_reading, last_reading_date
+///
+/// - _applyMeterEffectToLocalCustomer(record, txn): [PRIVATE] Core logic
+///   + Tính tiền nước: consumedUnits × pricePerUnit
+///   + TĂNG totalDebt
+///   + Cập nhật lastReading, lastReadingDate
+///
+/// PAYMENT RECORD (THU TIỀN):
+/// - insertPaymentRecord(record): Lưu bản ghi thu tiền
+///   → Tự động gọi _applyPaymentEffectToLocalCustomer()
+///   → UPDATE customers SET total_debt = total_debt - amountCollected
+///   → UPDATE customers SET last_payment_date
+///
+/// - _applyPaymentEffectToLocalCustomer(record, txn): [PRIVATE] Core logic
+///   + GIẢM totalDebt
+///   + Cập nhật lastPaymentDate
+///
+/// SYNC:
+/// - getRecordsForUser(user, recordType): Lấy records theo loại
+/// - countPendingRecordsForUser(user): Đếm records chưa sync
+/// - markRecordAsSynced(recordId): Đánh dấu đã sync
+/// - clearSyncedLocalCache(user): Xóa records đã sync (dọn cache)
+///
+/// STATISTICS:
+/// - estimateCacheSizeMb(): Ước tính dung lượng cache
+/// - getLastLocalSyncTimeForUser(user): Lấy thời gian sync cuối
+///
+/// PATTERN:
+/// - Singleton pattern (DatabaseHelper.instance)
+/// - Sử dụng Transaction cho data integrity
+/// - Tự động tạo tables nếu chưa có
+/// ============================================================================
+
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._internal();
 

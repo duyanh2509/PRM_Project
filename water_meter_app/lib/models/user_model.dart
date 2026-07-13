@@ -1,3 +1,13 @@
+/// ============================================================================
+/// USER MODEL - Model nhân viên thu nước
+/// ============================================================================
+/// PROPERTIES: id, username, password, fullName, areaCode, areaName
+/// METHODS:
+/// - fromMap(): Chuyển Map → User (đọc từ DB/Firestore)
+/// - toMap(): Chuyển User → Map (lưu vào DB)
+/// - copyWith(): Tạo bản sao với thay đổi
+/// ============================================================================
+
 /// Model cho User (nhan vien).
 class User {
   final int? id;

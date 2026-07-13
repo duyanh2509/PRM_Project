@@ -8,6 +8,24 @@ import 'history_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 
+/// ============================================================================
+/// MAIN NAVIGATION SCREEN - Bottom Tab Navigation (4 tabs)
+/// ============================================================================
+/// STATE: _currentIndex (tab hiện tại: 0-3)
+///
+/// METHODS:
+/// - initState(): Load SettingsProvider.loadForUser() sau khi build
+/// - _selectTab(index): Chuyển tab
+///
+/// UI BUILD:
+/// - IndexedStack: Giữ state của tất cả 4 tabs
+///   + Tab 0: HomeScreen (Trang chủ)
+///   + Tab 1: CustomerListScreen (Khách hàng)
+///   + Tab 2: HistoryScreen (Lịch sử)
+///   + Tab 3: SettingsScreen (Hệ thống)
+/// - NavigationBar: Bottom bar với 4 destinations
+/// ============================================================================
+
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key, this.initialIndex = 0});
 

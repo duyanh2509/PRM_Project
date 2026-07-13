@@ -3,6 +3,16 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+/// ============================================================================
+/// LOCAL IMAGE SERVICE - Lưu ảnh minh chứng vào local storage
+/// ============================================================================
+/// METHODS:
+/// - saveProofImage(sourceFile, customerCode): Copy ảnh từ temp (camera/gallery) → app folder
+///   + Tạo folder "proof_images" nếu chưa có
+///   + Tạo tên file an toàn: {customerCode}_{timestamp}.jpg
+///   + Return File object với path mới
+/// ============================================================================
+
 class LocalImageService {
   LocalImageService._internal();
 

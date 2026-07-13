@@ -9,6 +9,29 @@ import '../providers/history_provider.dart';
 import '../utils/collection_status_helper.dart';
 import 'customer_detail_screen.dart';
 
+/// ============================================================================
+/// CUSTOMER LIST SCREEN - Danh sách khách hàng
+/// ============================================================================
+/// CONTROLLERS: _searchController (TextField search)
+/// STATE: _isGridView (false = List view, true = Grid view 2 cột)
+///
+/// METHODS:
+/// - didChangeDependencies(): Load HistoryProvider
+/// - _refreshCustomers(): Pull-to-refresh → reload CustomerList + History
+/// - _buildListView(): Render ListView (dọc)
+/// - _buildGridView(): Render GridView (2 cột)
+///
+/// UI BUILD - Consumer2 (CustomerListProvider + HistoryProvider):
+/// - AppBar: Title "Khách hàng" + nút toggle List/Grid view
+/// - TextField: Search box (real-time search)
+/// - _AreaBanner: Thông tin khu vực + tổng số khách hàng + nút "Tải lại"
+/// - RefreshIndicator wrap List/Grid:
+///   + _CustomerCard (List view): Card dọc với đầy đủ thông tin
+///   + _CustomerGridCard (Grid view): Card vuông thu gọn
+/// - Mỗi card hiện: Tên, mã, địa chỉ, chỉ số cũ, công nợ, status badge
+/// - Bấm vào card → Navigate to CustomerDetailScreen
+/// ============================================================================
+
 class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key, required this.user});
 

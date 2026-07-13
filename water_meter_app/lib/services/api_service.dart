@@ -3,6 +3,23 @@ import '../models/user_model.dart';
 import 'connectivity_service.dart';
 import 'firebase_service.dart';
 
+/// ============================================================================
+/// API SERVICE - Orchestrator cho download & sync operations
+/// ============================================================================
+/// METHODS:
+/// - downloadAssignedCustomers(user): Download danh sách khách hàng từ Firestore
+///   + Query collection 'customers' theo areaCode
+///   + Lưu vào local DB (upsertCustomer)
+///   + Return số lượng đã tải
+///
+/// - syncPendingRecords(user): Sync records pending lên Firestore
+///   + Lấy records có syncStatus = 'pending' từ local DB
+///   + Loop qua từng record:
+///     * Gọi FirebaseService.syncRecord() → upload ảnh + lưu Firestore
+///     * Nếu thành công → markRecordAsSynced()
+///   + Return số lượng đã sync
+/// ============================================================================
+
 class ApiService {
   ApiService._internal();
 

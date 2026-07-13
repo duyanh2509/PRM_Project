@@ -8,6 +8,28 @@ import 'package:provider/provider.dart';
 import '../models/customer_model.dart';
 import '../models/meter_record_model.dart';
 import '../providers/auth_provider.dart';
+
+/// ============================================================================
+/// METER READING SCREEN - Ghi chỉ số công tơ
+/// ============================================================================
+/// CONTROLLERS: _readingController, _noteController
+/// STATE: _proofImage (File? - ảnh minh chứng)
+///
+/// METHODS:
+/// - _saveRecord(): Validate → tạo MeterRecord → insertMeterRecord → reload providers → back
+/// - _pickImage(): Mở modal chọn Camera/Gallery → pick → saveProofImage → update state
+///
+/// UI BUILD:
+/// - _SummaryCard: Thông tin khách hàng (avatar + tên + mã + địa chỉ)
+/// - Input Card:
+///   + 2 _MetricChip: "Chỉ số cũ" + "Đơn giá" (read-only)
+///   + TextField: "Chỉ số mới" (số, onChanged → setState)
+///   + TextField: "Ghi chú hiện trường" (multi-line)
+///   + 2 _MetricChip: "Tiêu thụ" + "Phát sinh" (auto-calculate real-time)
+/// - InkWell: Chụp/chọn ảnh (placeholder → preview khi có _proofImage)
+/// - Bottom Button: "Lưu chỉ số mới"
+/// ============================================================================
+
 import '../providers/customer_list_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';

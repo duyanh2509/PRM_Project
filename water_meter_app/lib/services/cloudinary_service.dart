@@ -4,6 +4,23 @@ import 'dart:io';
 
 import 'package:cloudinary_public/cloudinary_public.dart';
 
+/// ============================================================================
+/// CLOUDINARY SERVICE - Upload ảnh minh chứng lên Cloudinary
+/// ============================================================================
+/// CREDENTIALS: Cloud Name = "dehyvlweg"
+///
+/// METHODS:
+/// - uploadImage(file, customerCode): Upload ảnh lên Cloudinary
+///   + Folder: "water_meter_proofs"
+///   + Tên file public: {customerCode}_{timestamp}
+///   + Return: Cloudinary public URL (https://res.cloudinary.com/...)
+///
+/// SỬ DỤNG:
+/// - FirebaseService.syncRecord() gọi để upload ảnh trước khi save Firestore
+/// - URL được lưu vào field 'proofImagePath' trong Firestore
+/// - URL có thể xem trực tiếp trên browser
+/// ============================================================================
+
 class CloudinaryService {
   static final CloudinaryService instance = CloudinaryService._internal();
 

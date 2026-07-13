@@ -3,6 +3,19 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../database/database_helper.dart';
+
+/// ============================================================================
+/// SETTINGS PROVIDER - Quản lý cài đặt & đồng bộ
+/// ============================================================================
+/// STATE: _isOnline, _isSyncing, _isDownloading, _pendingSyncCount, _cacheSizeMb, _downloadedCustomerCount, _lastSyncAt
+/// METHODS:
+/// - loadForUser(user): Load thống kê (pending count, cache size, ...)
+/// - toggleOnline(): Bật/tắt chế độ online/offline
+/// - downloadLatestRoute(user): Tải danh sách khách hàng từ server
+/// - syncNow(user): Đồng bộ records lên server
+/// - clearCache(): Xóa cache đã đồng bộ
+/// ============================================================================
+
 import '../models/user_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/download_service.dart';

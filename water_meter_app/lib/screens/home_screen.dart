@@ -6,6 +6,22 @@ import '../providers/customer_list_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
 
+/// ============================================================================
+/// HOME SCREEN - Màn hình Trang chủ (Dashboard)
+/// ============================================================================
+/// METHODS:
+/// - initState(): Load CustomerList + History + Settings providers
+/// - _showComingSoon(label): Hiện SnackBar cho tính năng chưa có
+///
+/// UI BUILD - Consumer4 (lắng nghe 4 providers):
+/// - _HeroCard: Thông tin nhân viên (avatar, tên, khu vực, nút "Mở tuyến")
+/// - _SyncBanner: Thông báo "X bản ghi đang chờ gửi" + nút "Xử lý"
+/// - 3× _StatCard: Thống kê (Hộ gia đình / Bản ghi / Chưa gửi)
+/// - _ProgressCard: Tiến độ công việc (CircularProgressIndicator + 2 metrics)
+/// - GridView 4× _ActionCard: Hành động nhanh (Tải dữ liệu / Tìm / Lịch sử / Hệ thống)
+/// - _ContinueCard: Nút "Tiếp tục sang danh sách..."
+/// ============================================================================
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.onNavigateToTab});
 

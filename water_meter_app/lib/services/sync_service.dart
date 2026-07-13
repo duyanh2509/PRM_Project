@@ -1,6 +1,13 @@
 import '../models/user_model.dart';
 import 'api_service.dart';
 
+/// ============================================================================
+/// SYNC SERVICE - Wrapper cho sync operations
+/// ============================================================================
+/// METHODS:
+/// - syncPendingRecords(user): Forward sang ApiService.syncPendingRecords()
+/// ============================================================================
+
 class SyncService {
   SyncService._internal();
 

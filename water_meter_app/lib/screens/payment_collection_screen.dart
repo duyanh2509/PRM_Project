@@ -8,6 +8,29 @@ import 'package:provider/provider.dart';
 import '../models/customer_model.dart';
 import '../models/meter_record_model.dart';
 import '../providers/auth_provider.dart';
+
+/// ============================================================================
+/// PAYMENT COLLECTION SCREEN - Thu tiền
+/// ============================================================================
+/// CONTROLLERS: _amountController, _noteController
+/// STATE: _paymentMethod ("Tiền mặt"/"Chuyển khoản"), _paymentStatus ("Đã thu đủ"/"Thu 1 phần"), _proofImage, _isVerified
+///
+/// METHODS:
+/// - _savePayment(): Validate → tạo PaymentRecord → insertPaymentRecord → reload providers → back
+/// - _selectProofImage(): Modal chọn Camera/Gallery → pick → save → update state
+///
+/// UI BUILD - Watch HistoryProvider:
+/// - _CustomerSummaryCard: Thông tin KH + breakdown công nợ (Nợ kỳ trước + Tiền nước tháng này)
+/// - _ReceiptProofCard: Upload ảnh minh chứng (placeholder/preview + badge "Đã xác thực")
+/// - _PaymentDataCard:
+///   + 2 _DataMetric: "Chỉ số gần nhất" + "Tổng phải thu"
+///   + Breakdown box: Nợ tháng trước + Tiền nước tháng này = Tổng cộng
+///   + TextField: "Số tiền thu" (onChanged → setState → auto-calculate remainingAmount)
+///   + Bottom line: "Đã nhập: X đ | Còn lại: Y đ"
+/// - _StatusNoteCard: Dropdown phương thức + tình trạng + TextField ghi chú
+/// - Bottom Button: "Lưu thanh toán (Offline)" + timestamp
+/// ============================================================================
+
 import '../providers/customer_list_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';

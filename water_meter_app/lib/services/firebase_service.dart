@@ -8,6 +8,33 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
+
+/// ============================================================================
+/// FIREBASE SERVICE - Tương tác với Firestore & Cloudinary
+/// ============================================================================
+/// FIRESTORE COLLECTIONS:
+/// - staff: Thông tin nhân viên (login)
+/// - customers: Danh sách khách hàng
+/// - reading_meter: Bản ghi ghi chỉ số
+/// - payments: Bản ghi thu tiền
+///
+/// METHODS:
+/// - authenticateStaff(username, password): Query staff collection để verify login
+///   + Return User object nếu tìm thấy
+///
+/// - downloadCustomers(areaCode): Query customers theo khu vực
+///   + Return List<Map> customers
+///
+/// - syncRecord(record): Upload record lên Firestore
+///   + Nếu có proofImagePath → upload lên Cloudinary → lấy public URL
+///   + Lưu vào collection 'reading_meter' hoặc 'payments'
+///   + _applyMeterReadingToCustomer() / _applyPaymentToCustomer(): Update customer trên Firestore
+///
+/// HELPER:
+/// - _uploadToCloudinary(file): Upload ảnh lên Cloudinary → return public URL
+/// - _resolveProofImagePath(path): Xử lý inline image / local file / remote URL
+/// ============================================================================
+
 import 'cloudinary_service.dart';
 
 class FirebaseService {

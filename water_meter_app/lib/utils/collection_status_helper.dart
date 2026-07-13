@@ -1,6 +1,30 @@
 import '../models/customer_model.dart';
 import '../models/meter_record_model.dart';
 
+/// ============================================================================
+/// COLLECTION STATUS HELPER - Tính toán trạng thái thu tiền của khách hàng
+/// ============================================================================
+/// ENUM CollectionStage:
+/// - noReading: Chưa ghi chỉ số
+/// - unpaid: Đã ghi số nhưng chưa thu tiền
+/// - partial: Thu 1 phần (còn nợ)
+/// - paid: Hoàn tất (đã thu đủ)
+///
+/// CLASS CustomerCollectionStatus:
+/// - stage: CollectionStage (enum trên)
+/// - label: Text hiển thị ("Chưa ghi", "Chưa thu", "Thu 1 phần", "Hoàn tất")
+/// - description: Mô tả chi tiết
+///
+/// FUNCTION:
+/// - resolveCustomerCollectionStatus(customer, meterRecords, paymentRecords):
+///   + Logic tính toán:
+///     * Nếu chưa có meter record → noReading
+///     * Nếu có meter nhưng chưa payment → unpaid
+///     * Nếu totalDebt > 0 → partial
+///     * Nếu totalDebt <= 0 → paid
+///   + Return CustomerCollectionStatus object
+/// ============================================================================
+
 enum CollectionStage {
   noReading,
   unpaid,

@@ -4,6 +4,16 @@ import '../database/database_helper.dart';
 import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
 
+/// ============================================================================
+/// HISTORY PROVIDER - Quản lý lịch sử ghi số & thu tiền
+/// ============================================================================
+/// STATE: _meterRecords (list ghi số), _paymentRecords (list thu tiền), _isLoading
+/// METHODS:
+/// - loadForUser(user): Load cả 2 loại records từ DB
+/// - addMeterRecord(user, record): Thêm bản ghi ghi số → reload list
+/// - addPaymentRecord(user, record): Thêm bản ghi thu tiền → reload list
+/// ============================================================================
+
 class HistoryProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 

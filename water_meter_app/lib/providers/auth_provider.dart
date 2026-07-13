@@ -4,6 +4,16 @@ import '../database/database_helper.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
 
+/// ============================================================================
+/// AUTH PROVIDER - Quản lý đăng nhập
+/// ============================================================================
+/// STATE: _currentUser, _isLoading, _errorMessage
+/// METHODS:
+/// - login(username, password): Đăng nhập (check local DB → Firebase → save local)
+/// - logout(): Đăng xuất
+/// - clearError(): Xóa lỗi
+/// ============================================================================
+
 class AuthProvider with ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;

@@ -1,3 +1,36 @@
+/// ============================================================================
+/// CUSTOMER MODEL - Model đại diện cho khách hàng (hộ gia đình)
+/// ============================================================================
+///
+/// PROPERTIES (Thuộc tính):
+/// - customerCode: Mã khách hàng (VD: "KH001")
+/// - customerName: Tên khách hàng (VD: "Nguyễn Văn A")
+/// - address: Địa chỉ đầy đủ
+/// - phoneNumber: Số điện thoại (nullable)
+/// - areaCode: Mã khu vực (VD: "KV001")
+/// - areaName: Tên khu vực (VD: "Khu vực 1")
+/// - lastReading: Chỉ số công tơ gần nhất (nullable)
+/// - lastReadingDate: Ngày ghi chỉ số gần nhất (nullable)
+/// - totalDebt: Tổng công nợ hiện tại (VD: 500000)
+/// - debtMonths: Số tháng nợ (VD: 2)
+/// - pricePerUnit: Đơn giá nước/m³ (VD: 20000)
+/// - lastPaymentDate: Ngày thanh toán gần nhất (nullable)
+/// - isActive: Trạng thái hoạt động (true/false)
+///
+/// METHODS (Phương thức):
+/// - fromMap(): Chuyển Map → Customer object (dùng khi đọc từ DB)
+/// - toMap(): Chuyển Customer object → Map (dùng khi lưu vào DB)
+/// - copyWith(): Tạo bản sao với một số thuộc tính thay đổi
+/// - formattedDebt: Format công nợ thành chuỗi tiền tệ (VD: "500.000 đ")
+/// - formattedLastReading: Format chỉ số (VD: "120 m³" hoặc "Chưa có")
+/// - formattedLastReadingDate: Format ngày (VD: "10/01/2024" hoặc "Chưa có")
+///
+/// SỬ DỤNG:
+/// - Lưu/đọc từ SQLite table 'customers'
+/// - Hiển thị trong CustomerListScreen, CustomerDetailScreen
+/// - Tính toán công nợ, tiêu thụ trong các màn hình ghi số/thu tiền
+/// ============================================================================
+
 class Customer {
   final int? id;
   final String customerCode;

@@ -8,6 +8,27 @@ import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
 import 'login_screen.dart';
 
+/// ============================================================================
+/// SETTINGS SCREEN - Màn hình Hệ thống
+/// ============================================================================
+/// METHODS:
+/// - _handleLogout(context): Hiện dialog xác nhận → logout → navigate to LoginScreen
+/// - _download(context): Gọi downloadLatestRoute → reload providers → show message
+/// - _sync(context): Gọi syncNow → reload providers → show message
+/// - _clearCache(context): Gọi clearCache → reload providers
+///
+/// UI BUILD - Consumer2 (AuthProvider + SettingsProvider):
+/// - Header: Title "Hệ thống và dữ liệu" + IconButton toggle Online/Offline
+/// - _ProfileCard: Avatar, tên NV, mã NV, khu vực, tag "Trực tuyến"/"Ngoại tuyến"
+/// - _StatusCard: 4 metrics (Khách hàng đã tải / Bản ghi chờ sync / Bộ nhớ đệm / Lần sync cuối)
+/// - _ActionPanel:
+///   + FilledButton "Tải dữ liệu tuyến" (disable khi offline/downloading)
+///   + OutlinedButton "Đồng bộ lên máy chủ" (disable khi offline/syncing)
+/// - _OptionsPanel: ListTile "Xóa bộ nhớ đệm"
+/// - _MessageCard: Hiện statusMessage nếu có
+/// - _LogoutCard: Nút đăng xuất (màu đỏ)
+/// ============================================================================
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 

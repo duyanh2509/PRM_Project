@@ -8,6 +8,31 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/meter_record_model.dart';
+
+/// ============================================================================
+/// HISTORY SCREEN - Lịch sử ghi số & thu tiền
+/// ============================================================================
+/// CONTROLLERS: _searchController
+/// STATE: _segmentIndex (0 = Ghi chỉ số, 1 = Thu tiền), _searchQuery
+///
+/// METHODS:
+/// - initState(): Load HistoryProvider
+/// - _refresh(): Pull-to-refresh → reload history
+///
+/// UI BUILD - Consumer<HistoryProvider>:
+/// - _ScreenHeader: Title "Bản ghi thực địa" + nút filter
+/// - _SegmentControl: 2 tabs "Ghi chỉ số" / "Thu tiền" (toggle _segmentIndex)
+/// - TextField: Search box (filter theo tên/mã/địa chỉ)
+/// - _HistoryOverview: Title + "Đã thực hiện X bản ghi"
+/// - RefreshIndicator wrap ListView:
+///   + _HistoryCard: Card với thông tin record
+///     * Mode meter: _MeterReadingPanel (chỉ số cũ / mới)
+///     * Mode payment: _PaymentPanel (số tiền thu / tiêu thụ + badges)
+///   + _SyncBadge: "ĐÃ ĐỒNG BỘ" / "CHỜ ĐỒNG BỘ"
+///   + Button "Chi tiết" → Navigate to _HistoryRecordDetailScreen
+/// - _HistoryFooter: "Bạn đã xem hết lịch sử..."
+/// ============================================================================
+
 import '../models/user_model.dart';
 import '../providers/history_provider.dart';
 

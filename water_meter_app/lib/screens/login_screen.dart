@@ -4,6 +4,24 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'main_navigation_screen.dart';
 
+/// ============================================================================
+/// LOGIN SCREEN - Màn hình đăng nhập
+/// ============================================================================
+/// CONTROLLERS: _usernameController, _passwordController (TextEditingController)
+/// STATE: _obscurePassword (bool - ẩn/hiện mật khẩu)
+///
+/// METHODS:
+/// - _handleLogin(): Validate input → gọi AuthProvider.login() → navigate nếu thành công
+///
+/// UI BUILD:
+/// - Icon water_drop lớn
+/// - Title "Water Meter App"
+/// - TextField username (icon person, validate không empty)
+/// - TextField password (icon lock, suffixIcon toggle show/hide, validate >= 6 ký tự)
+/// - Button "Đăng nhập" (hiện loading khi isLoading = true)
+/// - Consumer<AuthProvider> để auto rebuild button
+/// ============================================================================
+
 /// Màn hình đăng nhập.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

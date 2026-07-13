@@ -4,6 +4,19 @@ import '../database/database_helper.dart';
 import '../models/customer_model.dart';
 import '../models/user_model.dart';
 
+/// ============================================================================
+/// CUSTOMER LIST PROVIDER - Quản lý danh sách khách hàng
+/// ============================================================================
+/// STATE: _customers (list), _searchQuery (search text), _isLoading, _errorMessage
+/// GETTERS:
+/// - customers: Danh sách gốc
+/// - filteredCustomers: Danh sách sau khi search (tự động filter theo searchQuery)
+/// METHODS:
+/// - loadCustomersForUser(user): Load danh sách từ DB theo khu vực
+/// - updateSearchQuery(value): Cập nhật từ khóa search → tự động filter
+/// - clearSearch(): Xóa search query
+/// ============================================================================
+
 class CustomerListProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 

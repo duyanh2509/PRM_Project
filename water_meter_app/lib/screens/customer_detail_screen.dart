@@ -8,6 +8,24 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+/// ============================================================================
+/// CUSTOMER DETAIL SCREEN - Chi tiết khách hàng
+/// ============================================================================
+/// UI BUILD - Watch CustomerListProvider + HistoryProvider:
+/// - _ProfileCard: Avatar, tên, mã, status badges, địa chỉ, SĐT, mã công tơ
+/// - _DebtCard: Tổng nợ hiện tại + badge "Quá hạn"/"Đúng hạn"
+/// - _UsageChartCard: Biểu đồ tiêu thụ nước (CustomPainter vẽ line chart)
+/// - _LatestBillingCard: Kỳ ghi gần nhất (3 values: Tiêu thụ / Phát sinh / Đã thu)
+/// - Gallery: ListView ngang các _MeterPhotoCard (ảnh công tơ từ local/Cloudinary)
+/// - _StaffNoteCard: Ghi chú nhân viên
+/// - _BottomActionBar: 2 nút "Ghi chỉ số" + "Thu tiền"
+///
+/// HELPER METHODS:
+/// - _buildChartPoints(): Tạo data points cho biểu đồ
+/// - _buildGalleryItems(): Lấy ảnh từ meter records
+/// - _buildStaffNote(): Lấy note từ bản ghi gần nhất
+/// ============================================================================
+
 import '../models/customer_model.dart';
 import '../models/meter_record_model.dart';
 import '../providers/customer_list_provider.dart';

@@ -1,3 +1,11 @@
+
+/// METHODS:
+/// - fromMap(): Chuyển Map → MeterRecord (đọc từ DB)
+/// - toMap(): Chuyển MeterRecord → Map (lưu vào DB)
+/// - copyWith(): Tạo bản sao với thay đổi
+/// - isSynced: Getter kiểm tra đã sync chưa
+
+
 class MeterRecord {
   final int? id;
   final String customerCode;
