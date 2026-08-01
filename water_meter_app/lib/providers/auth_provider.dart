@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database_helper.dart';
 import '../models/user_model.dart';
+import '../services/connectivity_service.dart';
 import '../services/firebase_service.dart';
 
 /// ============================================================================
@@ -20,6 +21,7 @@ class AuthProvider with ChangeNotifier {
   String? _errorMessage;
 
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final ConnectivityService _connectivityService = ConnectivityService.instance;
   final FirebaseService _firebaseService = FirebaseService.instance;
 
   User? get currentUser => _currentUser;
@@ -50,30 +52,34 @@ class AuthProvider with ChangeNotifier {
         return false;
       }
 
+      await _connectivityService.initialize();
+
+      if (_connectivityService.isOnline) {
+        final firebaseUser = await _firebaseService.authenticateStaff(
+          normalizedUsername,
+          normalizedPassword,
+        );
+        if (firebaseUser != null) {
+          await _dbHelper.upsertUser(firebaseUser);
+          _currentUser = firebaseUser;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
+      }
+
       final localUser = await _dbHelper.login(
         normalizedUsername,
         normalizedPassword,
       );
-      if (localUser != null) {
-        _currentUser = localUser;
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      }
-
-      final firebaseUser = await _firebaseService.authenticateStaff(
-        normalizedUsername,
-        normalizedPassword,
-      );
-      if (firebaseUser == null) {
+      if (localUser == null) {
         _errorMessage = 'Ten dang nhap hoac mat khau khong dung';
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      await _dbHelper.upsertUser(firebaseUser);
-      _currentUser = firebaseUser;
+      _currentUser = localUser;
       _isLoading = false;
       notifyListeners();
       return true;

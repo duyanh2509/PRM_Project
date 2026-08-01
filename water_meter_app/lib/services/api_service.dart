@@ -34,6 +34,20 @@ class ApiService {
     final serverCustomers = user.role == 'admin'
         ? await _firebaseService.downloadAllCustomers()
         : await _firebaseService.downloadCustomers(user.areaCode);
+    
+    // Kiểm tra: Nếu Firebase không có dữ liệu, cảnh báo thay vì xóa data local
+    if (serverCustomers.isEmpty) {
+      final localDownloaded = await _dbHelper.downloadLatestRouteForUser(user);
+      if (localDownloaded > 0) {
+        return localDownloaded;
+      }
+
+      throw const ApiException(
+        'Không tìm thấy dữ liệu khách hàng trên máy chủ. '
+        'Vui lòng kiểm tra Firebase hoặc liên hệ quản trị viên.',
+      );
+    }
+    
     final serverRecords = await _firebaseService.downloadRecords(
       areaCode: user.role == 'admin' ? null : user.areaCode,
     );

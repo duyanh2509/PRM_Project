@@ -1,4 +1,0 @@
-[mcp_servers.firebase]
-command = "node"
-args = ["D:\\PRM393\\PRM_Project\\tools\\firebase-mcp\\node_modules\\@gannonh\\firebase-mcp\\dist\\index.js"]
-env = { SERVICE_ACCOUNT_KEY_PATH = "D:\\PRM393\\PRM_Project\\tools\\firebase-mcp\\serviceAccountKey.json", FIREBASE_STORAGE_BUCKET = "prmwatermeterapp.firebasestorage.app" }

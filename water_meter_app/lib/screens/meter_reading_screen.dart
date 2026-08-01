@@ -46,21 +46,25 @@ class MeterReadingScreen extends StatefulWidget {
 
 class _MeterReadingScreenState extends State<MeterReadingScreen> {
   late final TextEditingController _readingController;
+  late final TextEditingController _usageController;
   late final TextEditingController _noteController;
   final ImagePicker _imagePicker = ImagePicker();
 
   File? _proofImage;
+  bool _isSyncingReadingFields = false;
 
   @override
   void initState() {
     super.initState();
     _readingController = TextEditingController();
+    _usageController = TextEditingController();
     _noteController = TextEditingController();
   }
 
   @override
   void dispose() {
     _readingController.dispose();
+    _usageController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -155,11 +159,28 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                 const SizedBox(height: 14),
                 TextField(
                   controller: _readingController,
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => setState(() {}),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: _onNewReadingChanged,
                   decoration: InputDecoration(
                     labelText: 'Chỉ số mới',
                     hintText: 'Nhập chỉ số vừa ghi',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _usageController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: _onUsageChanged,
+                  decoration: InputDecoration(
+                    labelText: 'Số m³ sử dụng',
+                    hintText: 'Hoặc nhập lượng nước tiêu thụ',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -241,7 +262,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
     final oldReading = widget.customer.lastReading ?? 0;
 
     if (rawReading == null) {
-      _showMessage('Vui lòng nhập chỉ số mới.');
+      _showMessage('Vui lòng nhập chỉ số mới hoặc số m³ sử dụng.');
       return;
     }
 
@@ -286,9 +307,17 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       syncedAt: null,
     );
 
-    await historyProvider.addMeterRecord(user: user, record: record);
-    await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
-    await settingsProvider.loadForUser(user, forceRefresh: true);
+    try {
+      await historyProvider.addMeterRecord(user: user, record: record);
+      await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
+      await settingsProvider.loadForUser(user, forceRefresh: true);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -302,6 +331,47 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       ),
     );
     navigator.pop(true);
+  }
+
+  void _onNewReadingChanged(String value) {
+    if (_isSyncingReadingFields) {
+      return;
+    }
+
+    final oldReading = widget.customer.lastReading ?? 0;
+    final newReading = double.tryParse(value.trim());
+
+    _isSyncingReadingFields = true;
+    if (newReading == null) {
+      _usageController.clear();
+    } else {
+      final consumedUnits = (newReading - oldReading).clamp(
+        0.0,
+        double.infinity,
+      );
+      _usageController.text = _formatInputNumber(consumedUnits);
+    }
+    _isSyncingReadingFields = false;
+    setState(() {});
+  }
+
+  void _onUsageChanged(String value) {
+    if (_isSyncingReadingFields) {
+      return;
+    }
+
+    final oldReading = widget.customer.lastReading ?? 0;
+    final consumedUnits = double.tryParse(value.trim());
+
+    _isSyncingReadingFields = true;
+    if (consumedUnits == null) {
+      _readingController.clear();
+    } else {
+      final newReading = oldReading + consumedUnits.clamp(0.0, double.infinity);
+      _readingController.text = _formatInputNumber(newReading);
+    }
+    _isSyncingReadingFields = false;
+    setState(() {});
   }
 
   Future<void> _pickImage() async {
@@ -363,6 +433,13 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
 
   String _billingMonth(DateTime dateTime) {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}';
+  }
+
+  String _formatInputNumber(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
   }
 
   BoxDecoration _cardDecoration() {

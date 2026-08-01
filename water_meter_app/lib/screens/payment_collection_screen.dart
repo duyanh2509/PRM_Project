@@ -228,9 +228,18 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
 
   Future<void> _savePayment() async {
     final amountCollected = _parseCurrency(_amountController.text);
+    final currentDebt = widget.customer.totalDebt;
     if (amountCollected <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập số tiền đã thu.')),
+      );
+      return;
+    }
+    if (amountCollected > currentDebt + 0.01) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Số tiền không hợp lệ.'),
+        ),
       );
       return;
     }
@@ -257,40 +266,48 @@ class _PaymentCollectionScreenState extends State<PaymentCollectionScreen> {
           ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     final latestMeter = meterRecords.isNotEmpty ? meterRecords.first : null;
 
-    await historyProvider.addPaymentRecord(
-      user: user,
-      record: MeterRecord(
-        id: null,
-        customerCode: widget.customer.customerCode,
-        customerName: widget.customer.customerName,
-        address: widget.customer.address,
-        areaCode: widget.customer.areaCode,
-        areaName: widget.customer.areaName,
-        recordType: 'payment',
-        oldReading: latestMeter?.oldReading ?? widget.customer.lastReading,
-        newReading:
-            latestMeter?.newReading ??
-            latestMeter?.oldReading ??
-            widget.customer.lastReading,
-        amountCollected: amountCollected,
-        syncStatus: 'pending',
-        recordedAt: DateTime.now(),
-        collectorName: user.fullName,
-        note: [
-          _paymentStatus,
-          _paymentMethod,
-          _noteController.text.trim(),
-        ].where((part) => part.isNotEmpty).join(' | '),
-        pricePerUnit: widget.customer.pricePerUnit,
-        billingMonth: _buildBillingMonth(DateTime.now()),
-        paymentMethod: _paymentMethod,
-        paymentStatus: _paymentStatus,
-        proofImagePath: _proofImage?.path,
-        syncedAt: null,
-      ),
-    );
-    await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
-    await settingsProvider.loadForUser(user, forceRefresh: true);
+    try {
+      await historyProvider.addPaymentRecord(
+        user: user,
+        record: MeterRecord(
+          id: null,
+          customerCode: widget.customer.customerCode,
+          customerName: widget.customer.customerName,
+          address: widget.customer.address,
+          areaCode: widget.customer.areaCode,
+          areaName: widget.customer.areaName,
+          recordType: 'payment',
+          oldReading: latestMeter?.oldReading ?? widget.customer.lastReading,
+          newReading:
+              latestMeter?.newReading ??
+              latestMeter?.oldReading ??
+              widget.customer.lastReading,
+          amountCollected: amountCollected,
+          syncStatus: 'pending',
+          recordedAt: DateTime.now(),
+          collectorName: user.fullName,
+          note: [
+            _paymentStatus,
+            _paymentMethod,
+            _noteController.text.trim(),
+          ].where((part) => part.isNotEmpty).join(' | '),
+          pricePerUnit: widget.customer.pricePerUnit,
+          billingMonth: _buildBillingMonth(DateTime.now()),
+          paymentMethod: _paymentMethod,
+          paymentStatus: _paymentStatus,
+          proofImagePath: _proofImage?.path,
+          syncedAt: null,
+        ),
+      );
+      await customerListProvider.loadCustomersForUser(user, forceRefresh: true);
+      await settingsProvider.loadForUser(user, forceRefresh: true);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      return;
+    }
 
     if (!mounted) {
       return;

@@ -9,6 +9,9 @@
 .history
 .svn/
 migrate_working_dir/
+*firebase-adminsdk*.json
+serviceAccountKey.json
+node_modules/
 
 # IntelliJ related
 *.iml

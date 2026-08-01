@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/meter_record_model.dart';
 import '../models/user_model.dart';
 
@@ -45,21 +46,39 @@ class FirebaseService {
   FirebaseService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   String? _lastImageUploadError;
+
+  Future<void> ensureFirebaseSignedIn() async {
+    if (_auth.currentUser != null) {
+      return;
+    }
+
+    await _auth.signInAnonymously();
+  }
 
   Future<Map<String, dynamic>?> getStaffByUsername(String username) async {
     try {
+      await ensureFirebaseSignedIn();
+      final normalizedUsername = _normalizeText(username);
       final snapshot = await _firestore
           .collection('staff')
           .where('username', isEqualTo: username)
           .limit(1)
           .get();
 
-      if (snapshot.docs.isEmpty) {
-        return null;
+      if (snapshot.docs.isNotEmpty) {
+        return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
       }
 
-      return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
+      final allSnapshot = await _firestore.collection('staff').get();
+      for (final doc in allSnapshot.docs) {
+        if (_normalizeText(doc.data()['username']) == normalizedUsername) {
+          return {'id': doc.id, ...doc.data()};
+        }
+      }
+
+      return null;
     } catch (e) {
       print('Error getting staff: $e');
       return null;
@@ -72,7 +91,10 @@ class FirebaseService {
       return null;
     }
 
-    final storedPassword = _stringValue(staff['password']);
+    final storedPassword = _stringValue(
+      staff['password'],
+      fallback: _stringValue(staff['passwordHash']),
+    );
     if (storedPassword.isEmpty || storedPassword != password) {
       return null;
     }
@@ -93,6 +115,7 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> getAllStaff() async {
     try {
+      await ensureFirebaseSignedIn();
       final snapshot = await _firestore.collection('staff').get();
       return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     } catch (e) {
@@ -103,6 +126,7 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> downloadCustomers(String areaCode) async {
     try {
+      await ensureFirebaseSignedIn();
       final normalizedAreaCode = _normalizeText(areaCode);
 
       final directSnapshot = await _firestore
@@ -111,7 +135,7 @@ class FirebaseService {
           .get();
 
       final directMatches = directSnapshot.docs
-          .map((doc) => _mapCustomerDocument(doc.data()))
+          .map((doc) => _mapCustomerDocument(doc.data(), documentId: doc.id))
           .toList();
       if (directMatches.isNotEmpty) {
         return directMatches;
@@ -126,31 +150,54 @@ class FirebaseService {
       }).toList();
     } catch (e) {
       print('Error downloading customers: $e');
-      return [];
+      rethrow;
     }
   }
 
   Future<List<Map<String, dynamic>>> downloadAllCustomers() async {
     try {
+      await ensureFirebaseSignedIn();
       final snapshot = await _firestore.collection('customers').get();
       return snapshot.docs
-          .map((doc) => _mapCustomerDocument(doc.data()))
+          .map((doc) => _mapCustomerDocument(doc.data(), documentId: doc.id))
           .toList();
     } catch (e) {
       print('Error downloading all customers: $e');
-      return [];
+      rethrow;
     }
   }
 
   Future<List<Map<String, Object?>>> downloadRecords({String? areaCode}) async {
     try {
+      await ensureFirebaseSignedIn();
       final meterSnapshot = await _firestore.collection('meter_readings').get();
+      final legacyMeterSnapshot = await _firestore
+          .collection('reading_meter')
+          .get();
       final paymentSnapshot = await _firestore.collection('payments').get();
 
-      final records = <Map<String, Object?>>[
-        ...meterSnapshot.docs.map((doc) => _mapRecordDocument(doc.data())),
-        ...paymentSnapshot.docs.map((doc) => _mapRecordDocument(doc.data())),
-      ];
+      final recordsByKey = <String, Map<String, Object?>>{};
+      void addRecord(String collection, QueryDocumentSnapshot doc) {
+        final mapped = _mapRecordDocument(
+          doc.data() as Map<String, dynamic>,
+          documentId: doc.id,
+          collection: collection,
+        );
+        final key = _recordDedupKey(mapped);
+        recordsByKey.putIfAbsent(key, () => mapped);
+      }
+
+      for (final doc in meterSnapshot.docs) {
+        addRecord('meter_readings', doc);
+      }
+      for (final doc in legacyMeterSnapshot.docs) {
+        addRecord('reading_meter', doc);
+      }
+      for (final doc in paymentSnapshot.docs) {
+        addRecord('payments', doc);
+      }
+
+      final records = recordsByKey.values.toList();
 
       if (areaCode == null || areaCode == 'ALL') {
         records.sort(_compareRecordMaps);
@@ -158,17 +205,20 @@ class FirebaseService {
       }
 
       final filtered = records.where((record) {
-        return _stringValue(record['areaCode']) == areaCode;
+        final recordAreaCode = _normalizeText(record['areaCode']);
+        return recordAreaCode.isEmpty ||
+            recordAreaCode == _normalizeText(areaCode);
       }).toList()..sort(_compareRecordMaps);
       return filtered;
     } catch (e) {
       print('Error downloading records: $e');
-      return [];
+      rethrow;
     }
   }
 
   Future<String?> uploadCustomer(Map<String, dynamic> customer) async {
     try {
+      await ensureFirebaseSignedIn();
       final docRef = await _firestore.collection('customers').add({
         ...customer,
         'createdAt': FieldValue.serverTimestamp(),
@@ -187,6 +237,7 @@ class FirebaseService {
     Map<String, dynamic> updates,
   ) async {
     try {
+      await ensureFirebaseSignedIn();
       final snapshot = await _firestore
           .collection('customers')
           .where('customerCode', isEqualTo: customerCode)
@@ -211,6 +262,7 @@ class FirebaseService {
 
   Future<String?> uploadMeterReading(Map<String, dynamic> reading) async {
     try {
+      await ensureFirebaseSignedIn();
       final docRef = await _firestore.collection('meter_readings').add({
         ...reading,
         'uploadedAt': FieldValue.serverTimestamp(),
@@ -227,6 +279,7 @@ class FirebaseService {
     String customerCode,
   ) async {
     try {
+      await ensureFirebaseSignedIn();
       final snapshot = await _firestore
           .collection('meter_readings')
           .where('customerCode', isEqualTo: customerCode)
@@ -242,6 +295,7 @@ class FirebaseService {
 
   Future<String?> uploadPayment(Map<String, dynamic> payment) async {
     try {
+      await ensureFirebaseSignedIn();
       final docRef = await _firestore.collection('payments').add({
         ...payment,
         'uploadedAt': FieldValue.serverTimestamp(),
@@ -258,6 +312,7 @@ class FirebaseService {
     String customerCode,
   ) async {
     try {
+      await ensureFirebaseSignedIn();
       final snapshot = await _firestore
           .collection('payments')
           .where('customerCode', isEqualTo: customerCode)
@@ -347,6 +402,7 @@ class FirebaseService {
 
   Future<bool> testConnection() async {
     try {
+      await ensureFirebaseSignedIn();
       await _firestore
           .collection('staff')
           .limit(1)
@@ -361,6 +417,7 @@ class FirebaseService {
 
   Future<DateTime?> getServerTime() async {
     try {
+      await ensureFirebaseSignedIn();
       final docRef = _firestore.collection('_system').doc('timestamp');
       await docRef.set({'timestamp': FieldValue.serverTimestamp()});
 
@@ -376,6 +433,7 @@ class FirebaseService {
   }
 
   Future<MeterRecord> syncRecord(MeterRecord record) async {
+    await ensureFirebaseSignedIn();
     final imageResult = await _resolveProofImagePath(record);
     final syncedRecord = record.copyWith(
       proofImagePath: imageResult.proofImagePath,
@@ -392,7 +450,10 @@ class FirebaseService {
     } else {
       final upsertResult = await _upsertMeterReading(syncedRecord);
       if (upsertResult.shouldApplyToCustomer) {
-        await _applyMeterReadingToCustomer(syncedRecord);
+        await _applyMeterReadingToCustomer(
+          syncedRecord,
+          startsNewDebtMonth: upsertResult.startsNewDebtMonth,
+        );
         await upsertResult.reference.set({
           'customerApplied': true,
         }, SetOptions(merge: true));
@@ -403,6 +464,7 @@ class FirebaseService {
   }
 
   Future<String?> uploadAndUpdateRecordProofImage(MeterRecord record) async {
+    await ensureFirebaseSignedIn();
     final imageResult = await _resolveProofImagePath(record);
     if (imageResult.proofImagePath == null ||
         !_isRemoteImagePath(imageResult.proofImagePath!)) {
@@ -508,11 +570,16 @@ class FirebaseService {
         .collection('meter_readings')
         .doc(_buildRecordId(record));
     final snapshot = await docRef.get();
+    final startsNewDebtMonth = !await _hasRemoteMeterRecordForBillingMonth(
+      record,
+      excludingDocId: docRef.id,
+    );
     await docRef.set(_recordPayload(record), SetOptions(merge: true));
     final customerApplied = snapshot.data()?['customerApplied'] == true;
     return _RecordUpsertResult(
       reference: docRef,
       shouldApplyToCustomer: !customerApplied,
+      startsNewDebtMonth: startsNewDebtMonth,
     );
   }
 
@@ -526,16 +593,15 @@ class FirebaseService {
     return _RecordUpsertResult(
       reference: docRef,
       shouldApplyToCustomer: !customerApplied,
+      startsNewDebtMonth: false,
     );
   }
 
-  Future<void> _applyMeterReadingToCustomer(MeterRecord record) async {
-    final docRef = await _findCustomerDoc(record.customerCode);
-    if (docRef == null) {
-      throw Exception(
-        'Không tìm thấy khách hàng ${record.customerCode} trên Firebase.',
-      );
-    }
+  Future<void> _applyMeterReadingToCustomer(
+    MeterRecord record, {
+    required bool startsNewDebtMonth,
+  }) async {
+    final docRef = await _findOrCreateCustomerDoc(record);
 
     final snapshot = await docRef.get();
     final currentData = snapshot.data() ?? const <String, dynamic>{};
@@ -553,24 +619,21 @@ class FirebaseService {
       'lastReading': newReading,
       'lastReadingDate': Timestamp.fromDate(record.recordedAt),
       'totalDebt': currentDebt + billAmount,
-      'debtMonths': currentDebtMonths + (billAmount > 0 ? 1 : 0),
+      'debtMonths':
+          currentDebtMonths + (billAmount > 0 && startsNewDebtMonth ? 1 : 0),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
   Future<void> _applyPaymentToCustomer(MeterRecord record) async {
-    final docRef = await _findCustomerDoc(record.customerCode);
-    if (docRef == null) {
-      throw Exception(
-        'Không tìm thấy khách hàng ${record.customerCode} trên Firebase.',
-      );
-    }
+    final docRef = await _findOrCreateCustomerDoc(record);
 
     final snapshot = await docRef.get();
     final currentData = snapshot.data() ?? const <String, dynamic>{};
     final currentDebt = _toDouble(currentData['totalDebt']) ?? 0;
     final currentDebtMonths = _toInt(currentData['debtMonths']) ?? 0;
-    final remaining = math.max(0, currentDebt - (record.amountCollected ?? 0));
+    final appliedAmount = math.min(record.amountCollected ?? 0, currentDebt);
+    final remaining = math.max(0, currentDebt - appliedAmount);
 
     await docRef.set({
       'totalDebt': remaining,
@@ -578,6 +641,34 @@ class FirebaseService {
       'lastPaymentDate': Timestamp.fromDate(record.recordedAt),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>> _findOrCreateCustomerDoc(
+    MeterRecord record,
+  ) async {
+    final existing = await _findCustomerDoc(record.customerCode);
+    if (existing != null) {
+      return existing;
+    }
+
+    final docRef = _firestore.collection('customers').doc(record.customerCode);
+    await docRef.set({
+      'customerCode': record.customerCode,
+      'customerName': record.customerName,
+      'address': record.address,
+      'areaCode': record.areaCode,
+      'areaName': record.areaName,
+      'lastReading': record.oldReading ?? record.newReading ?? 0,
+      'lastReadingDate': Timestamp.fromDate(record.recordedAt),
+      'pricePerUnit': record.pricePerUnit <= 0 ? 15000 : record.pricePerUnit,
+      'totalDebt': record.recordType == 'payment'
+          ? (record.amountCollected ?? 0)
+          : 0,
+      'debtMonths': record.recordType == 'payment' ? 1 : 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return docRef;
   }
 
   Future<DocumentReference<Map<String, dynamic>>?> _findCustomerDoc(
@@ -612,14 +703,16 @@ class FirebaseService {
       'oldReading': record.oldReading,
       'newReading': record.newReading,
       'amountCollected': record.amountCollected,
+      'pricePerUnit': record.pricePerUnit,
       'collectorName': record.collectorName,
       'note': record.note,
-      'billingMonth': record.billingMonth,
+      'billingMonth': _billingMonthFor(record),
       'paymentMethod': record.paymentMethod,
       'paymentStatus': record.paymentStatus,
       'proofImagePath': _remoteProofImagePath(record.proofImagePath),
       'recordedAt': Timestamp.fromDate(record.recordedAt),
       'uploadedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
@@ -636,32 +729,132 @@ class FirebaseService {
     return null;
   }
 
+  String _billingMonthFor(MeterRecord record) {
+    final value = record.billingMonth?.trim();
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+    return '${record.recordedAt.year}-${record.recordedAt.month.toString().padLeft(2, '0')}';
+  }
+
+  Future<bool> _hasRemoteMeterRecordForBillingMonth(
+    MeterRecord record, {
+    required String excludingDocId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('meter_readings')
+        .where('customerCode', isEqualTo: record.customerCode)
+        .where('recordType', isEqualTo: 'meter')
+        .where('billingMonth', isEqualTo: _billingMonthFor(record))
+        .limit(5)
+        .get();
+
+    return snapshot.docs.any((doc) => doc.id != excludingDocId);
+  }
+
   bool _isRemoteImagePath(String value) {
     final normalized = value.trim().toLowerCase();
     return normalized.startsWith('http://') ||
         normalized.startsWith('https://');
   }
 
-  Map<String, Object?> _mapRecordDocument(Map<String, dynamic> data) {
+  Map<String, Object?> _mapRecordDocument(
+    Map<String, dynamic> data, {
+    required String documentId,
+    required String collection,
+  }) {
+    final recordedAt =
+        _parseDateTime(
+          _readField(data, const [
+            'recordedAt',
+            'recorded_at',
+            'createdAt',
+            'created_at',
+          ]),
+        ) ??
+        DateTime.now();
+    final uploadedAt = _parseDateTime(
+      _readField(data, const [
+        'uploadedAt',
+        'uploaded_at',
+        'syncedAt',
+        'synced_at',
+      ]),
+    );
+
     return {
-      'customerCode': _stringValue(data['customerCode']),
-      'recordType': _stringValue(data['recordType'], fallback: 'meter'),
-      'oldReading': _toDouble(data['oldReading']),
-      'newReading': _toDouble(data['newReading']),
-      'amountCollected': _toDouble(data['amountCollected']),
+      'customerCode': _stringValue(
+        _readField(data, const ['customerCode', 'customer_code', 'code']),
+      ),
+      'recordType': _normalizeRecordType(
+        _readField(data, const ['recordType', 'record_type', 'type']),
+        collection,
+      ),
+      'oldReading': _toDouble(
+        _readField(data, const [
+          'oldReading',
+          'old_reading',
+          'previousReading',
+        ]),
+      ),
+      'newReading': _toDouble(
+        _readField(data, const ['newReading', 'new_reading', 'currentReading']),
+      ),
+      'amountCollected': _toDouble(
+        _readField(data, const [
+          'amountCollected',
+          'amount_collected',
+          'amount',
+          'paidAmount',
+        ]),
+      ),
       'syncStatus': 'synced',
-      'recordedAt': (_parseDateTime(data['recordedAt']) ?? DateTime.now())
-          .toIso8601String(),
-      'collectorName': _nullableStringValue(data['collectorName']),
-      'note': _nullableStringValue(data['note']),
-      'billingMonth': _nullableStringValue(data['billingMonth']),
-      'paymentMethod': _nullableStringValue(data['paymentMethod']),
-      'paymentStatus': _nullableStringValue(data['paymentStatus']),
-      'proofImagePath': _nullableStringValue(data['proofImagePath']),
-      'syncedAt': _parseDateTime(data['uploadedAt'])?.toIso8601String(),
-      'areaCode': _stringValue(data['areaCode']),
-      'areaName': _stringValue(data['areaName']),
+      'recordedAt': recordedAt.toIso8601String(),
+      'collectorName': _nullableStringValue(
+        _readField(data, const [
+          'collectorName',
+          'collector_name',
+          'staffName',
+        ]),
+      ),
+      'note': _nullableStringValue(_readField(data, const ['note', 'notes'])),
+      'billingMonth': _nullableStringValue(
+        _readField(data, const ['billingMonth', 'billing_month']),
+      ),
+      'paymentMethod': _nullableStringValue(
+        _readField(data, const ['paymentMethod', 'payment_method']),
+      ),
+      'paymentStatus': _nullableStringValue(
+        _readField(data, const ['paymentStatus', 'payment_status']),
+      ),
+      'proofImagePath': _nullableStringValue(
+        _readField(data, const [
+          'proofImagePath',
+          'proof_image_path',
+          'imageUrl',
+          'image_url',
+        ]),
+      ),
+      'syncedAt': uploadedAt?.toIso8601String(),
+      'areaCode': _stringValue(
+        _readField(data, const ['areaCode', 'area_code']),
+      ),
+      'areaName': _stringValue(
+        _readField(data, const ['areaName', 'area_name']),
+      ),
+      'remoteDocumentId': documentId,
+      'remoteCollection': collection,
     };
+  }
+
+  String _recordDedupKey(Map<String, Object?> record) {
+    return [
+      _stringValue(record['recordType']),
+      _normalizeText(record['customerCode']),
+      _stringValue(record['recordedAt']),
+      _stringValue(record['newReading']),
+      _stringValue(record['amountCollected']),
+    ].join('|');
   }
 
   int _compareRecordMaps(Map<String, Object?> a, Map<String, Object?> b) {
@@ -678,32 +871,89 @@ class FirebaseService {
     ).compareTo(_stringValue(b['customerCode']));
   }
 
-  Map<String, Object?> _mapCustomerDocument(Map<String, dynamic> data) {
-    final createdAt = _parseDateTime(data['createdAt']) ?? DateTime.now();
+  Map<String, Object?> _mapCustomerDocument(
+    Map<String, dynamic> data, {
+    required String documentId,
+  }) {
+    final createdAt =
+        _parseDateTime(_readField(data, const ['createdAt', 'created_at'])) ??
+        DateTime.now();
+    final billing = data['billing'];
 
     return {
-      'customerCode': _stringValue(data['customerCode']),
-      'customerName': _stringValue(
-        data['customerName'],
-        fallback: _stringValue(data['name']),
+      'customerCode': _stringValue(
+        _readField(data, const ['customerCode', 'customer_code', 'code']),
+        fallback: documentId,
       ),
-      'address': _stringValue(data['address']),
-      'phoneNumber': _nullableStringValue(data['phoneNumber']),
-      'areaCode': _stringValue(data['areaCode'], fallback: 'ALL'),
-      'areaName': _stringValue(data['areaName'], fallback: 'Tat ca khu vuc'),
-      'lastReading': _toDouble(data['lastReading']),
+      'customerName': _stringValue(
+        _readField(data, const ['customerName', 'customer_name', 'name']),
+      ),
+      'address': _stringValue(_readField(data, const ['address', 'diaChi'])),
+      'phoneNumber': _nullableStringValue(
+        _readField(data, const ['phoneNumber', 'phone_number', 'phone']),
+      ),
+      'areaCode': _stringValue(
+        _readField(data, const ['areaCode', 'area_code']),
+        fallback: 'ALL',
+      ),
+      'areaName': _stringValue(
+        _readField(data, const ['areaName', 'area_name']),
+        fallback: 'Tat ca khu vuc',
+      ),
+      'lastReading': _toDouble(
+        _readField(data, const ['lastReading', 'last_reading']),
+      ),
       'lastReadingDate': _parseDateTime(
-        data['lastReadingDate'],
+        _readField(data, const ['lastReadingDate', 'last_reading_date']),
       )?.toIso8601String(),
-      'pricePerUnit': _toDouble(data['pricePerUnit']) ?? 15000,
-      'totalDebt': _toDouble(data['totalDebt']) ?? 0,
-      'debtMonths': _toInt(data['debtMonths']) ?? 0,
+      'pricePerUnit':
+          _toDouble(
+            _readField(data, const ['pricePerUnit', 'price_per_unit']),
+          ) ??
+          15000,
+      'totalDebt':
+          _toDouble(_readField(data, const ['totalDebt', 'total_debt'])) ??
+          _toDouble(_readNestedMapField(billing, 'totalDebt')) ??
+          0,
+      'debtMonths':
+          _toInt(_readField(data, const ['debtMonths', 'debt_months'])) ??
+          _toInt(_readNestedMapField(billing, 'debtMonths')) ??
+          0,
       'lastPaymentDate': _parseDateTime(
-        data['lastPaymentDate'],
+        _readField(data, const ['lastPaymentDate', 'last_payment_date']),
       )?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
-      'updatedAt': _parseDateTime(data['updatedAt'])?.toIso8601String(),
+      'updatedAt': _parseDateTime(
+        _readField(data, const ['updatedAt', 'updated_at']),
+      )?.toIso8601String(),
     };
+  }
+
+  dynamic _readField(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      if (data.containsKey(key)) {
+        return data[key];
+      }
+    }
+    return null;
+  }
+
+  dynamic _readNestedMapField(dynamic value, String key) {
+    if (value is Map<String, dynamic>) {
+      return value[key];
+    }
+    if (value is Map) {
+      return value[key];
+    }
+    return null;
+  }
+
+  String _normalizeRecordType(dynamic value, String collection) {
+    final raw = _normalizeText(value);
+    if (raw == 'payment' || raw == 'payments' || collection == 'payments') {
+      return 'payment';
+    }
+    return 'meter';
   }
 
   String _stringValue(dynamic value, {String fallback = ''}) {
@@ -767,8 +1017,10 @@ class _RecordUpsertResult {
   const _RecordUpsertResult({
     required this.reference,
     required this.shouldApplyToCustomer,
+    required this.startsNewDebtMonth,
   });
 
   final DocumentReference<Map<String, dynamic>> reference;
   final bool shouldApplyToCustomer;
+  final bool startsNewDebtMonth;
 }

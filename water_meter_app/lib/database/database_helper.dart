@@ -103,7 +103,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 12,
       onCreate: _createTables,
       onUpgrade: _onUpgrade,
     );
@@ -208,7 +208,7 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 9) {
+    if (oldVersion < 11) {
       await db.execute('DROP TABLE IF EXISTS server_records');
       await db.execute('DROP TABLE IF EXISTS server_customers');
       await db.execute('DROP TABLE IF EXISTS meter_records');
@@ -222,8 +222,8 @@ class DatabaseHelper {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
 
-    // Chỉ tạo tài khoản admin mặc định
-    final users = <Map<String, Object?>>[
+    // Tạo tài khoản admin và demo staff
+    final demoUsers = <Map<String, Object?>>[
       {
         'username': 'admin',
         'password': 'admin123',
@@ -233,20 +233,210 @@ class DatabaseHelper {
         'areaName': 'Tất cả khu vực',
         'createdAt': nowIso,
       },
+      {
+        'username': 'staff01',
+        'password': '12345678',
+        'fullName': 'Nhan vien A',
+        'role': 'staff',
+        'areaCode': 'KV01',
+        'areaName': 'Khu vuc 1',
+        'createdAt': nowIso,
+      },
+      {
+        'username': 'staff02',
+        'password': '12345678',
+        'fullName': 'Nhan vien B',
+        'role': 'staff',
+        'areaCode': 'KV02',
+        'areaName': 'Khu vuc 2',
+        'createdAt': nowIso,
+      },
+      {
+        'username': 'staff03',
+        'password': '12345678',
+        'fullName': 'Nhan vien C',
+        'role': 'staff',
+        'areaCode': 'KV03',
+        'areaName': 'Khu vuc 3',
+        'createdAt': nowIso,
+      },
     ];
 
-    for (final user in users) {
+    for (final user in demoUsers) {
       await db.insert('users', user);
     }
 
-    // Không tạo demo data - data sẽ được tải từ Firebase
+    // Tạo demo customers
+    final demoCustomers = <Map<String, Object?>>[
+      {
+        'customerCode': 'KH001',
+        'customerName': 'Nguyen Van An',
+        'address': '12 Duong Hoa Sen, Phuong 1',
+        'phoneNumber': '0901000001',
+        'areaCode': 'KV01',
+        'areaName': 'Khu vuc 1',
+        'lastReading': 128.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH002',
+        'customerName': 'Tran Thi Binh',
+        'address': '34 Duong Le Loi, Phuong 2',
+        'phoneNumber': '0901000002',
+        'areaCode': 'KV01',
+        'areaName': 'Khu vuc 1',
+        'lastReading': 96.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH003',
+        'customerName': 'Le Quoc Cuong',
+        'address': '56 Duong Tran Phu, Phuong 3',
+        'phoneNumber': '0901000003',
+        'areaCode': 'KV01',
+        'areaName': 'Khu vuc 1',
+        'lastReading': 145.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH004',
+        'customerName': 'Pham Thi Dung',
+        'address': '78 Duong Nguyen Hue, Phuong 4',
+        'phoneNumber': '0901000004',
+        'areaCode': 'KV01',
+        'areaName': 'Khu vuc 1',
+        'lastReading': 88.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH005',
+        'customerName': 'Vu Minh Duc',
+        'address': '90 Duong Phan Dang Luu, Phuong 5',
+        'phoneNumber': '0901000005',
+        'areaCode': 'KV02',
+        'areaName': 'Khu vuc 2',
+        'lastReading': 174.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15500.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH006',
+        'customerName': 'Bui Ngoc Ha',
+        'address': '11 Duong Quang Trung, Phuong 6',
+        'phoneNumber': '0901000006',
+        'areaCode': 'KV02',
+        'areaName': 'Khu vuc 2',
+        'lastReading': 112.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH007',
+        'customerName': 'Dang Gia Huy',
+        'address': '25 Duong Cach Mang Thang 8, Phuong 7',
+        'phoneNumber': '0901000007',
+        'areaCode': 'KV02',
+        'areaName': 'Khu vuc 2',
+        'lastReading': 67.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH008',
+        'customerName': 'Ho Thi Lan',
+        'address': '39 Duong Hai Ba Trung, Phuong 8',
+        'phoneNumber': '0901000008',
+        'areaCode': 'KV02',
+        'areaName': 'Khu vuc 2',
+        'lastReading': 132.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15200.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH009',
+        'customerName': 'Ngo Van Minh',
+        'address': '47 Duong Ly Thuong Kiet, Phuong 9',
+        'phoneNumber': '0901000009',
+        'areaCode': 'KV03',
+        'areaName': 'Khu vuc 3',
+        'lastReading': 121.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH010',
+        'customerName': 'Duong Thu Thao',
+        'address': '63 Duong Hoang Hoa Tham, Phuong 10',
+        'phoneNumber': '0901000010',
+        'areaCode': 'KV03',
+        'areaName': 'Khu vuc 3',
+        'lastReading': 159.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15800.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH011',
+        'customerName': 'Mai Cong Tan',
+        'address': '71 Duong Pasteur, Phuong 11',
+        'phoneNumber': '0901000011',
+        'areaCode': 'KV03',
+        'areaName': 'Khu vuc 3',
+        'lastReading': 104.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+      {
+        'customerCode': 'KH012',
+        'customerName': 'To Ngoc Yen',
+        'address': '88 Duong Pham Ngu Lao, Phuong 12',
+        'phoneNumber': '0901000012',
+        'areaCode': 'KV03',
+        'areaName': 'Khu vuc 3',
+        'lastReading': 140.0,
+        'lastReadingDate': '2026-05-01',
+        'pricePerUnit': 15000.0,
+        'createdAt': nowIso,
+        'updatedAt': nowIso,
+      },
+    ];
+
+    for (final customer in demoCustomers) {
+      await db.insert('customers', customer);
+      await db.insert('server_customers', customer);
+    }
   }
 
   Future<User?> login(String username, String password) async {
     final db = await database;
     final results = await db.query(
       'users',
-      where: 'username = ? AND password = ?',
+      where: 'username = ? COLLATE NOCASE AND password = ?',
       whereArgs: [username, password],
       limit: 1,
     );
@@ -422,23 +612,6 @@ class DatabaseHelper {
             );
 
       if (user.role == 'admin') {
-        await txn.delete('customers');
-      } else {
-        await txn.delete(
-          'customers',
-          where: 'areaCode = ?',
-          whereArgs: [user.areaCode],
-        );
-      }
-
-      for (final customer in serverCustomers) {
-        final localCustomer = Map<String, Object?>.from(customer)
-          ..remove('id')
-          ..['routeStatus'] = 'uncollected';
-        await txn.insert('customers', localCustomer);
-      }
-
-      if (user.role == 'admin') {
         await txn.rawDelete('''
           DELETE FROM meter_records
           WHERE syncStatus = 'synced'
@@ -454,6 +627,23 @@ class DatabaseHelper {
           ''',
           [user.areaCode],
         );
+      }
+
+      if (user.role == 'admin') {
+        await txn.delete('customers');
+      } else {
+        await txn.delete(
+          'customers',
+          where: 'areaCode = ?',
+          whereArgs: [user.areaCode],
+        );
+      }
+
+      for (final customer in serverCustomers) {
+        final localCustomer = Map<String, Object?>.from(customer)
+          ..remove('id')
+          ..['routeStatus'] = 'uncollected';
+        await txn.insert('customers', localCustomer);
       }
 
       final serverRecords = user.role == 'admin'
@@ -531,7 +721,14 @@ class DatabaseHelper {
         final data = Map<String, Object?>.from(record)
           ..remove('id')
           ..remove('areaCode')
-          ..remove('areaName');
+          ..remove('areaName')
+          ..remove('remoteCollection')
+          ..remove('remoteDocumentId')
+          ..remove('pricePerUnit');
+        final customerCode = data['customerCode']?.toString().trim() ?? '';
+        if (customerCode.isEmpty) {
+          continue;
+        }
         await txn.insert('server_records', data);
       }
     });
@@ -567,6 +764,11 @@ class DatabaseHelper {
         final nowIso = DateTime.now().toIso8601String();
 
         if (!exists) {
+          final startsNewDebtMonth = !await _hasMeterRecordForBillingMonth(
+            txn,
+            'server_records',
+            record,
+          );
           await txn.insert('server_records', {
             'customerCode': record.customerCode,
             'recordType': record.recordType,
@@ -577,7 +779,7 @@ class DatabaseHelper {
             'recordedAt': record.recordedAt.toIso8601String(),
             'collectorName': record.collectorName,
             'note': record.note,
-            'billingMonth': record.billingMonth,
+            'billingMonth': _billingMonthFor(record),
             'paymentMethod': record.paymentMethod,
             'paymentStatus': record.paymentStatus,
             'proofImagePath': record.proofImagePath,
@@ -585,7 +787,11 @@ class DatabaseHelper {
           });
 
           if (record.recordType == 'meter') {
-            await _applyMeterEffectToServerCustomer(txn, record);
+            await _applyMeterEffectToServerCustomer(
+              txn,
+              record,
+              startsNewDebtMonth: startsNewDebtMonth,
+            );
           } else {
             await _applyPaymentEffectToServerCustomer(txn, record);
           }
@@ -738,6 +944,11 @@ class DatabaseHelper {
       final exists = await _serverRecordExists(txn, record);
 
       if (!exists) {
+        final startsNewDebtMonth = !await _hasMeterRecordForBillingMonth(
+          txn,
+          'server_records',
+          record,
+        );
         await txn.insert('server_records', {
           'customerCode': record.customerCode,
           'recordType': record.recordType,
@@ -748,7 +959,7 @@ class DatabaseHelper {
           'recordedAt': record.recordedAt.toIso8601String(),
           'collectorName': record.collectorName,
           'note': record.note,
-          'billingMonth': record.billingMonth,
+          'billingMonth': _billingMonthFor(record),
           'paymentMethod': record.paymentMethod,
           'paymentStatus': record.paymentStatus,
           'proofImagePath': record.proofImagePath,
@@ -756,7 +967,11 @@ class DatabaseHelper {
         });
 
         if (record.recordType == 'meter') {
-          await _applyMeterEffectToServerCustomer(txn, record);
+          await _applyMeterEffectToServerCustomer(
+            txn,
+            record,
+            startsNewDebtMonth: startsNewDebtMonth,
+          );
         } else {
           await _applyPaymentEffectToServerCustomer(txn, record);
         }
@@ -778,11 +993,25 @@ class DatabaseHelper {
   Future<int> insertMeterRecord(MeterRecord record) async {
     final db = await database;
     return db.transaction((txn) async {
+      final startsNewDebtMonth = !await _hasMeterRecordForBillingMonth(
+        txn,
+        'meter_records',
+        record,
+      );
+      if (!startsNewDebtMonth) {
+        throw StateError(
+          'Khach hang da co ban ghi chi so cho ky ${_billingMonthFor(record)}.',
+        );
+      }
       final id = await txn.insert(
         'meter_records',
         record.toDatabaseMap()..remove('id'),
       );
-      await _applyMeterEffectToLocalCustomer(txn, record);
+      await _applyMeterEffectToLocalCustomer(
+        txn,
+        record,
+        startsNewDebtMonth: startsNewDebtMonth,
+      );
       return id;
     });
   }
@@ -790,6 +1019,23 @@ class DatabaseHelper {
   Future<int> insertPaymentRecord(MeterRecord record) async {
     final db = await database;
     return db.transaction((txn) async {
+      final customer = await _getCustomer(
+        txn,
+        'customers',
+        record.customerCode,
+      );
+      final amountCollected = record.amountCollected ?? 0;
+      if (customer == null) {
+        throw StateError('Khong tim thay khach hang ${record.customerCode}.');
+      }
+      if (amountCollected <= 0) {
+        throw StateError('So tien thu phai lon hon 0.');
+      }
+      if (amountCollected > customer.totalDebt + 0.01) {
+        throw StateError(
+          'So tien thu vuot qua cong no hien tai cua khach hang.',
+        );
+      }
       final id = await txn.insert(
         'meter_records',
         record.toDatabaseMap()..remove('id'),
@@ -848,8 +1094,9 @@ class DatabaseHelper {
 
   Future<void> _applyMeterEffectToLocalCustomer(
     Transaction txn,
-    MeterRecord record,
-  ) async {
+    MeterRecord record, {
+    required bool startsNewDebtMonth,
+  }) async {
     final customer = await _getCustomer(txn, 'customers', record.customerCode);
     if (customer == null) {
       return;
@@ -867,7 +1114,9 @@ class DatabaseHelper {
         'lastReading': record.newReading ?? customer.lastReading,
         'lastReadingDate': record.recordedAt.toIso8601String(),
         'totalDebt': customer.totalDebt + billAmount,
-        'debtMonths': customer.debtMonths + (billAmount > 0 ? 1 : 0),
+        'debtMonths':
+            customer.debtMonths +
+            (billAmount > 0 && startsNewDebtMonth ? 1 : 0),
         'routeStatus': 'reading_done',
         'updatedAt': DateTime.now().toIso8601String(),
       },
@@ -887,7 +1136,8 @@ class DatabaseHelper {
 
     final remaining = math.max(
       0,
-      customer.totalDebt - (record.amountCollected ?? 0),
+      customer.totalDebt -
+          math.min(record.amountCollected ?? 0, customer.totalDebt),
     );
     await txn.update(
       'customers',
@@ -905,8 +1155,9 @@ class DatabaseHelper {
 
   Future<void> _applyMeterEffectToServerCustomer(
     Transaction txn,
-    MeterRecord record,
-  ) async {
+    MeterRecord record, {
+    required bool startsNewDebtMonth,
+  }) async {
     final customer = await _getCustomer(
       txn,
       'server_customers',
@@ -928,7 +1179,9 @@ class DatabaseHelper {
         'lastReading': record.newReading ?? customer.lastReading,
         'lastReadingDate': record.recordedAt.toIso8601String(),
         'totalDebt': customer.totalDebt + billAmount,
-        'debtMonths': customer.debtMonths + (billAmount > 0 ? 1 : 0),
+        'debtMonths':
+            customer.debtMonths +
+            (billAmount > 0 && startsNewDebtMonth ? 1 : 0),
         'updatedAt': DateTime.now().toIso8601String(),
       },
       where: 'customerCode = ?',
@@ -951,7 +1204,8 @@ class DatabaseHelper {
 
     final remaining = math.max(
       0,
-      customer.totalDebt - (record.amountCollected ?? 0),
+      customer.totalDebt -
+          math.min(record.amountCollected ?? 0, customer.totalDebt),
     );
     await txn.update(
       'server_customers',
@@ -1003,6 +1257,40 @@ class DatabaseHelper {
       limit: 1,
     );
     return result.isNotEmpty;
+  }
+
+  Future<bool> _hasMeterRecordForBillingMonth(
+    Transaction txn,
+    String table,
+    MeterRecord record,
+  ) async {
+    if (record.recordType != 'meter') {
+      return false;
+    }
+
+    final result = await txn.query(
+      table,
+      where: '''
+        customerCode = ?
+        AND recordType = ?
+        AND IFNULL(billingMonth, substr(recordedAt, 1, 7)) = ?
+      ''',
+      whereArgs: [
+        record.customerCode,
+        record.recordType,
+        _billingMonthFor(record),
+      ],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  String _billingMonthFor(MeterRecord record) {
+    final value = record.billingMonth?.trim();
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+    return '${record.recordedAt.year}-${record.recordedAt.month.toString().padLeft(2, '0')}';
   }
 
   int _readCount(Object? value) {
